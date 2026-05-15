@@ -1,0 +1,48 @@
+[Unit]
+Description=Go Audio Streamer - HLS Adaptive Bitrate Streaming
+Documentation=https://github.com/streamer
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# User & group
+User=zays
+Group=zays
+
+# Working directory
+WorkingDirectory=/opt/streamer
+
+# Executable + arguments
+ExecStart=/opt/streamer/streamer \
+    -port 8080 \
+    -output /var/www/hls \
+    -silent /opt/streamer/silent \
+    -config /opt/streamer/station.cfg \
+    -log /var/log/streamer.log
+
+# Restart policy: always restart on failure
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/www/hls /opt/streamer/station.cfg /var/log/streamer.log
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=1024
+
+# Log to journald (stdout)
+StandardOutput=journal
+StandardError=journal
+
+# Timeout
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

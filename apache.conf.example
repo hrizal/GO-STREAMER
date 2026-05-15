@@ -1,0 +1,35 @@
+# Apache Configuration Example for Go Audio Streamer
+# Location: /etc/apache2/sites-available/streamer.conf
+
+<VirtualHost *:80>
+    ServerName yourdomain.com
+    
+    # Enable necessary modules:
+    # sudo a2enmod proxy proxy_http rewrite
+    
+    RewriteEngine On
+
+    # Shortcut for station master playlists
+    # Example: http://yourdomain.com/radio1/ -> /hls/radio1/master.m3u8
+    RewriteRule ^/([a-zA-Z0-9_-]+)/$ /hls/$1/master.m3u8 [R=302,L]
+
+    # Proxy all requests to Go Streamer
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
+
+    # Special handling for HLS directory (optional)
+    <Location "/hls">
+        Header set Cache-Control "max-age=1, public, must-revalidate, proxy-revalidate"
+    </Location>
+
+</VirtualHost>
+
+# Example for HTTPS (SSL)
+# <VirtualHost *:443>
+#     ServerName yourdomain.com
+#     SSLEngine on
+#     SSLCertificateFile /etc/letsencrypt/live/yourdomain.com/fullchain.pem
+#     SSLCertificateKeyFile /etc/letsencrypt/live/yourdomain.com/privkey.pem
+#     ...
+# </VirtualHost>

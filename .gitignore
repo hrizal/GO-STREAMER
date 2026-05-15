@@ -1,0 +1,18 @@
+# Binary
+streamer
+
+# Logs
+*.log
+
+# HLS Output
+output/
+
+# Backups
+.backup/
+
+# Systemd (Optional, better to keep as template but ignore local changes if needed)
+# streamer.service
+
+# OS files
+.DS_Store
+Thumbs.db
