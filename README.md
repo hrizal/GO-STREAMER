@@ -53,9 +53,21 @@ Since Go Audio Broadcaster supports multiple independent stations, you can creat
 - FFmpeg (with `libopus` and `aac` support)
 
 ### 2. Installation
+
+#### A. One-Click Installer (Linux Recommended)
+The fastest way to install is using the master installer, which automatically handles FFmpeg dependencies and systemd setup:
 ```bash
-git clone https://github.com/yourusername/streamer.git
-cd streamer
+git clone https://github.com/hrizal/GO-AUDIO-BROADCASTER.git
+cd GO-AUDIO-BROADCASTER
+chmod +x install.sh
+sudo ./install.sh
+```
+
+#### B. Manual Build
+If you prefer to build manually:
+```bash
+git clone https://github.com/hrizal/GO-AUDIO-BROADCASTER.git
+cd GO-AUDIO-BROADCASTER
 go build -o streamer main.go
 ```
 
