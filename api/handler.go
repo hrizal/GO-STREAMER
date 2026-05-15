@@ -51,6 +51,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/mixer/restart", h.corsMiddleware(h.handleMixerRestart))
 	mux.HandleFunc("/mixer/skip", h.corsMiddleware(h.handleMixerSkip))
 	mux.HandleFunc("/breaking", h.corsMiddleware(h.handleBreaking))
+	mux.HandleFunc("/donothing", h.corsMiddleware(h.handleDoNothing))
 
 	// Serve HLS output files for clients
 	hlsServer := http.StripPrefix("/hls/", http.FileServer(http.Dir(h.serveDir)))
@@ -239,6 +240,12 @@ func (h *Handler) handleInject(w http.ResponseWriter, r *http.Request) {
 	})
 
 	log.Printf("[API] Injected %d files into station %s (type: %s, mode: %s)", len(req.Files), req.StationID, req.Type, mode)
+}
+
+func (h *Handler) handleDoNothing(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok","message":"I am doing absolutely nothing. Enjoy the silence."}`))
 }
 
 // handleCreateStation creates a new station
