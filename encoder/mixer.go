@@ -135,8 +135,8 @@ func (m *AudioMixer) mixAndWrite(size int) {
 
 	for i, ch := range m.Channels {
 		ch.mu.Lock()
-		// Hanya ambil jika ada data utuh (size). Kalau tidak, biarkan dia mengantri.
-		// Ini mencegah suara "dicacah".
+		// Only pull data if there's a full chunk (size). If not, let it queue.
+		// This prevents "choppy" sound artifacts.
 		if !ch.active || len(ch.buffer) < size || ch.Muted {
 			ch.mu.Unlock()
 			continue

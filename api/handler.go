@@ -581,13 +581,13 @@ http.Error(w, "station_id and file are required", http.StatusBadRequest)
 return
 }
 
-// Cek apakah file ada
+// Check if file exists
 if _, err := os.Stat(req.File); os.IsNotExist(err) {
 http.Error(w, "file not found: "+req.File, http.StatusBadRequest)
 return
 }
 
-// Mainkan INSTANT di Kanal 0 (Penyiar)
+// Play INSTANT on Channel 0 (Announcer/Priority)
 if err := h.manager.PlayInstant(req.StationID, req.File, 0); err != nil {
 http.Error(w, err.Error(), http.StatusInternalServerError)
 return

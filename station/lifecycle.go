@@ -157,7 +157,7 @@ func (sr *StationRunner) runLoop() {
 				sr.Station.Unlock()
 			}
 
-			// Tentukan durasi lagu
+			// Determine track duration
 			dur := encoder.GetAudioDuration(nextFile)
 			if dur <= 0 {
 				dur = 5.0 // Fallback
@@ -175,7 +175,7 @@ func (sr *StationRunner) runLoop() {
 			}
 			sr.Station.Unlock()
 
-			// JALANKAN LAGU (Async agar bisa tumpang tindih/mix)
+			// START TRACK (Async to allow overlapping/mixing)
 			go func(file string, insert bool) {
 				sr.Encoder.Execute(encoder.Transition{
 					NextFile: file,
@@ -183,16 +183,16 @@ func (sr *StationRunner) runLoop() {
 				})
 			}(nextFile, nextIsInsert)
 
-			// LOGIKA TUNGGU (Untuk Crossfade)
-			// Aturan: Playlist ke Playlist = Tunggu Durasi - 3 detik
-			// Selain itu = Tunggu Full Durasi
+			// WAIT LOGIC (For Crossfade)
+			// Rule: Playlist to Playlist = Wait Duration - 3 seconds
+			// Otherwise = Wait Full Duration
 			peekFile, peekIsInsert := sr.QueueMgr.PeekNextFile()
 			
 			waitSec := dur
 			if !nextIsInsert && !peekIsInsert && peekFile != "" && nextFile != sr.silentPath {
-				// OK untuk Crossfade
+				// OK for Crossfade
 				waitSec = dur - 3.0
-				if waitSec < 1 { waitSec = 1 } // Minimal 1 detik sebelum tindih
+				if waitSec < 1 { waitSec = 1 } // Minimum 1 second before overlap
 				log.Printf("%s Mixer: Crossfade planned in %.2fs", sr.Station.LogPrefix, waitSec)
 			} else {
 				log.Printf("%s Mixer: Normal playback, waiting full %.2fs", sr.Station.LogPrefix, waitSec)
@@ -200,7 +200,7 @@ func (sr *StationRunner) runLoop() {
 
 			currentFile = nextFile
 			
-			// LOGIKA TUNGGU (Pake Select agar bisa di-interrupt)
+			// WAIT LOGIC (Using Select for interruptibility)
 			timer := time.NewTimer(time.Duration(waitSec * float64(time.Second)))
 			select {
 			case <-sr.Station.StopChan():
@@ -211,9 +211,9 @@ func (sr *StationRunner) runLoop() {
 				log.Printf("%s [Mixer] Skip/Restart signal received. Interrupting current channels.", sr.Station.LogPrefix)
 				sr.Encoder.StopChannel(1)
 				sr.Encoder.StopChannel(2)
-				sr.Encoder.StopChannel(0) // Juga insert channel jika perlu
+				sr.Encoder.StopChannel(0) // Also insert channel if necessary
 			case <-timer.C:
-				// Normal end, lanjut ke lagu berikutnya
+				// Normal end, continue to next track
 			}
 		}
 	}

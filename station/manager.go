@@ -424,10 +424,10 @@ func (m *Manager) RestartCurrent(stationID string) error {
 		return fmt.Errorf("no current track to restart")
 	}
 
-	// Masukkan lagi ke depan antrean
+	// Put it back to the front of the queue
 	runner.QueueMgr.PushPlaylistFront([]string{currentFile})
 	
-	// Skip biar ganti (karena sudah ada di depan, dia akan putar ulang)
+	// Skip to switch (since it's at the front, it will replay)
 	runner.Station.Skip()
 	return nil
 }

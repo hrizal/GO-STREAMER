@@ -30,7 +30,7 @@ type AudioEngine struct {
 	ffmpegIn  io.WriteCloser
 	started   bool
 	Mixer       *AudioMixer
-	nextCh      int // Untuk bergantian kanal playlist (1 & 2)
+	nextCh      int // For alternating playlist channels (1 & 2)
 	channelCmds map[int]*exec.Cmd
 }
 
@@ -41,7 +41,7 @@ func NewAudioEngine(station *types.Station, variants types.BitrateVariants) *Aud
 		station:  station,
 		variants: variants,
 		tempDir:     tempDir,
-		nextCh:      1, // Mulai dari kanal 1
+		nextCh:      1, // Start with channel 1
 		channelCmds: make(map[int]*exec.Cmd),
 	}
 }
@@ -120,7 +120,7 @@ func (ae *AudioEngine) startFFmpeg() error {
 	ae.ffmpegIn = stdin
 	ae.started = true
 
-	// Inisialisasi dan jalankan Mixer (8 Kanal)
+	// Initialize and start Mixer (8 Channels)
 	ae.Mixer = NewAudioMixer(stdin, 8)
 	go ae.Mixer.Start()
 
@@ -196,11 +196,11 @@ func (ae *AudioEngine) feedStream(args []string, channelID int) error {
 		return fmt.Errorf("AudioMixer not running")
 	}
 
-	// Ambil handle kanal mixer
+	// Get mixer channel handle
 	targetChannel := mixer.Channels[channelID]
 
 	cmd := exec.Command("ffmpeg", args...)
-	cmd.Stdout = targetChannel // Feed ke kanal mixer, bukan langsung ke stdin
+	cmd.Stdout = targetChannel // Feed to mixer channel, not directly to stdin
 	log.Printf("%s [Encoder] Feeding stream to Mixer Channel %d...", ae.station.LogPrefix, channelID)
 	
 	cmd.Stderr = log.Writer()
@@ -228,7 +228,7 @@ func (ae *AudioEngine) StopChannel(channelID int) {
 	if cmd != nil && cmd.Process != nil {
 		log.Printf("[Encoder] Stopping Channel %d process...", channelID)
 		cmd.Process.Signal(os.Interrupt)
-		// Beri waktu sebentar untuk exit natural, kalau tidak kill
+		// Give it a moment to exit naturally, otherwise kill it
 		go func() {
 			time.Sleep(500 * time.Millisecond)
 			if cmd.Process != nil {
@@ -252,10 +252,10 @@ func (ae *AudioEngine) Execute(trans Transition) error {
 
 	var channelID int
 	if trans.IsInsert {
-		// Kanal 0 untuk prioritas (Insert)
+		// Channel 0 for priority (Insert)
 		channelID = 0
 	} else {
-		// Bergantian Kanal 1 dan 2 untuk Playlist (agar bisa crossfade)
+		// Alternate Channels 1 and 2 for Playlist (for crossfading)
 		ae.mu.Lock()
 		channelID = ae.nextCh
 		if ae.nextCh == 1 {
@@ -276,7 +276,7 @@ func (ae *AudioEngine) Execute(trans Transition) error {
 		"-f", "s16le", "-acodec", "pcm_s16le", "-",
 	}
 
-	// Jalankan feeder (blocking dalam goroutine pemanggil Execute)
+	// Run feeder (blocking within the caller's goroutine)
 	if err := ae.feedStream(args, channelID); err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (ae *AudioEngine) Execute(trans Transition) error {
 	return nil
 }
 
-// PlayInstant memutar file langsung ke kanal tertentu tanpa menunggu antrian
+// PlayInstant plays a file directly to a specific channel without waiting in queue
 func (ae *AudioEngine) PlayInstant(file string, channelID int) {
 	go func() {
 		log.Printf("%s [Encoder] PlayInstant: %s (Channel: %d)", 
@@ -311,7 +311,7 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 	durations := make(map[int]float64)
 	lastMods := make(map[int]time.Time)
 
-	// Bersihkan sampah raw_seg_* dan seg_* lama agar folder tidak penuh dan playlist tidak kotor
+	// Clean up old raw_seg_* and seg_* files to prevent folder bloat and playlist clutter
 	if files, err := filepath.Glob(filepath.Join(dir, "raw_seg_*.ts")); err == nil {
 		for _, f := range files {
 			os.Remove(f)
@@ -323,7 +323,7 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 		}
 	}
 
-	// Pre-scan file yang sudah ada di disk agar langsung sinkron
+	// Pre-scan existing files on disk for synchronization
 	for i := 0; i < 10; i++ {
 		path := filepath.Join(dir, fmt.Sprintf("seg_%d.ts", i))
 		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
@@ -340,7 +340,7 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 			return
 		}
 
-		// Tahap 1: Cari semua file raw yang ada
+		// Stage 1: Find all available raw files
 		var rawFiles []string
 		if matches, err := filepath.Glob(filepath.Join(dir, "raw_seg_*.ts")); err == nil {
 			rawFiles = matches
@@ -357,12 +357,12 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 			}
 		}
 
-		// Tahap 2: Pindahkan file raw yang sudah selesai (index < maxRawIdx)
+		// Stage 2: Move completed raw files (index < maxRawIdx)
 		for _, path := range rawFiles {
 			base := filepath.Base(path)
 			var idx int
 			if n, err := fmt.Sscanf(base, "raw_seg_%d.ts", &idx); err == nil && n == 1 {
-				// File dengan indeks lebih kecil dari yang terbaru PASTI sudah selesai
+				// Files with index smaller than the newest are definitely finished
 				if idx < maxRawIdx {
 					targetIdx := idx % 10
 					targetPath := filepath.Join(dir, fmt.Sprintf("seg_%d.ts", targetIdx))
@@ -375,17 +375,17 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 							if err != nil {
 								log.Printf("[HLS] Gagal Rename %s -> %s: %v", base, fmt.Sprintf("seg_%d.ts", targetIdx), err)
 							} else {
-								log.Printf("[HLS] Promoted %s -> %s (Mantap)", base, fmt.Sprintf("seg_%d.ts", targetIdx))
+								log.Printf("[HLS] Promoted %s -> %s", base, fmt.Sprintf("seg_%d.ts", targetIdx))
 							}
 						}
 					}
 				}
 			} else {
-				// Jika namanya aneh, hapus saja
+				// If filename is invalid, delete it
 				os.Remove(path)
 			}
 		}
-		// Tahap 3: Scan file target yang sudah "mantap"
+		// Stage 3: Scan confirmed target files
 		var newestTargetIdx int = -1
 		var maxTargetMod time.Time
 		for i := 0; i < 10; i++ {
@@ -396,7 +396,7 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 					maxTargetMod = info.ModTime()
 					newestTargetIdx = i
 				}
-				// Selalu update cache jika ModTime berubah
+				// Always update cache if ModTime changes
 				if info.ModTime().After(lastMods[i]) {
 					durations[i] = GetAudioDuration(path)
 					lastMods[i] = info.ModTime()
@@ -404,15 +404,15 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 			}
 		}
 
-		// Update: Sekarang kita bisa update playlist meski belum 10 file (minimal 3 agar player stabil)
+		// Update: Now we can update playlist even with fewer than 10 files (min 3 for player stability)
 		numSegs := len(durations)
 		if newestTargetIdx == -1 || numSegs < 3 {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 
-		// Cari urutan pertama (berdasarkan index asli FFmpeg agar naik tepat 1 angka tiap segmen)
-		// Jika maxRawIdx=78 dan ada 10 segmen, maka urutan pertamanya adalah 69.
+		// Find the starting sequence (based on FFmpeg's original index to ensure precise increment)
+		// Example: If maxRawIdx=78 and there are 10 segments, the first index is 69.
 		sequence := maxRawIdx - numSegs + 1
 		if sequence < 0 {
 			sequence = 0
