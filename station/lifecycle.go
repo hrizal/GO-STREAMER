@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/streamer/encoder"
@@ -239,9 +240,11 @@ func (sr *StationRunner) popTrack() (string, bool) {
 		sr.Station.Unlock()
 		return "", false
 	}
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		log.Printf("%s File not found: %s (skipping)", sr.Station.LogPrefix, file)
-		return sr.popTrack()
+	if !strings.HasPrefix(file, "http://") && !strings.HasPrefix(file, "https://") {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			log.Printf("%s File not found: %s (skipping)", sr.Station.LogPrefix, file)
+			return sr.popTrack()
+		}
 	}
 	nextFile, _ := sr.QueueMgr.PeekNextFile()
 	sr.Station.Lock()

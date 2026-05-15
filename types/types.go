@@ -85,6 +85,8 @@ type PlaybackConfig struct {
 	Opus32 bool `json:"opus32"`
 	Opus64 bool `json:"opus64"`
 	Opus96 bool `json:"opus96"`
+	// HLS segment duration
+	HlsTime int `json:"hls_time"`
 }
 
 func DefaultPlaybackConfig() PlaybackConfig {
@@ -98,6 +100,7 @@ func DefaultPlaybackConfig() PlaybackConfig {
 		Opus32: true,
 		Opus64: true,
 		Opus96: true,
+		HlsTime: 10,
 	}
 }
 

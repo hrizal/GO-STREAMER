@@ -194,8 +194,12 @@ func (h *Handler) handleInject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate files exist
+	// Validate files exist/accessible
 	for _, f := range req.Files {
+		// If it's a URL, skip local file check
+		if strings.HasPrefix(f, "http://") || strings.HasPrefix(f, "https://") {
+			continue
+		}
 		if _, err := os.Stat(f); os.IsNotExist(err) {
 			http.Error(w, "File not found: "+f, http.StatusBadRequest)
 			return
@@ -204,6 +208,11 @@ func (h *Handler) handleInject(w http.ResponseWriter, r *http.Request) {
 
 	// Validate files are audio
 	for _, f := range req.Files {
+		// If it's a URL, assume FFmpeg can handle it
+		if strings.HasPrefix(f, "http://") || strings.HasPrefix(f, "https://") {
+			continue
+		}
+		
 		// Basic extension check
 		ext := filepath.Ext(f)
 		switch ext {

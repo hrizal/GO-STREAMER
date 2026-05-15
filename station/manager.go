@@ -75,10 +75,10 @@ func (m *Manager) ReloadStationFromConfig(stationID string) error {
 	runner.Station.Lock()
 	runner.Station.Config = found.Config
 	runner.Station.Unlock()
-	log.Printf("[Manager] Station %s config reloaded: random=%v loop=%v unique=%v aac64=%v aac96=%v aac128=%v opus32=%v opus64=%v opus96=%v",
+	log.Printf("[Manager] Station %s config reloaded: random=%v loop=%v unique=%v aac64=%v aac96=%v aac128=%v opus32=%v opus64=%v opus96=%v hls_time=%v",
 		stationID, found.Config.Random, found.Config.Loop, found.Config.Unique,
 		found.Config.AAC64, found.Config.AAC96, found.Config.AAC128,
-		found.Config.Opus32, found.Config.Opus64, found.Config.Opus96)
+		found.Config.Opus32, found.Config.Opus64, found.Config.Opus96, found.Config.HlsTime)
 
 	if found.OutputDir != "" && found.OutputDir != runner.Station.OutputDir {
 		log.Printf("[Manager] Station %s output dir changed (%s). Restart required.",
@@ -169,6 +169,11 @@ func loadStationConfigs(path string) ([]types.StationConfigEntry, error) {
 					} else {
 						entryPlaylist = val
 					}
+				}
+			case "hls_time":
+				var t int
+				if n, err := fmt.Sscanf(val, "%d", &t); err == nil && n == 1 {
+					cfg.HlsTime = t
 				}
 			}
 		}
@@ -357,10 +362,10 @@ func (m *Manager) SetConfig(stationID string, cfg types.PlaybackConfig) error {
 	runner.Station.Lock()
 	runner.Station.Config = cfg
 	runner.Station.Unlock()
-	log.Printf("[Manager] Station %s config updated: random=%v loop=%v unique=%v aac64=%v aac96=%v aac128=%v opus32=%v opus64=%v opus96=%v",
+	log.Printf("[Manager] Station %s config updated: random=%v loop=%v unique=%v aac64=%v aac96=%v aac128=%v opus32=%v opus64=%v opus96=%v hls_time=%v",
 		stationID, cfg.Random, cfg.Loop, cfg.Unique,
 		cfg.AAC64, cfg.AAC96, cfg.AAC128,
-		cfg.Opus32, cfg.Opus64, cfg.Opus96)
+		cfg.Opus32, cfg.Opus64, cfg.Opus96, cfg.HlsTime)
 	return nil
 }
 

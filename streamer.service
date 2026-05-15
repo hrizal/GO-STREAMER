@@ -8,8 +8,8 @@ Wants=network-online.target
 Type=simple
 
 # User & group
-User=zays
-Group=zays
+User=radio
+Group=radio
 
 # Working directory
 WorkingDirectory=/opt/streamer

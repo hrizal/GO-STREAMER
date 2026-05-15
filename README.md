@@ -13,6 +13,7 @@ A high-performance audio streaming server written in Go. It supports real-time a
 - **Health Monitoring**: Built-in health check and real-time station status.
 - **Easy Station Shortcuts**: Automatic listener on port 80 (if available) for easy access: `http://yourip/station_id/`. Can be disabled using `-shortcuts=false`.
 - **Wide Format Support**: Supports MP3, WAV, OGG, FLAC, AAC, M4A, and WMA.
+- **Icecast/Shoutcast Relay**: Can pull remote streams and convert them to HLS in real-time.
 
 ## 🎧 Advanced Audio Engine
 
@@ -30,6 +31,20 @@ Built-in software mixer with 8 independent input channels:
 
 ### 3. Automatic Ducking
 When a track is played on the **Priority Channel (Channel 0)**, the mixer can automatically "duck" (lower the volume) of all other active channels. This is perfect for radio announcers or voice-overs over background music.
+
+### 4. Icecast/Shoutcast to HLS Relay
+You can use Go Audio Streamer as a powerful relay. Instead of local files, you can inject a network URL:
+- **How it works**: Simply send the URL of an existing Icecast/Shoutcast stream to the `/inject` API. 
+- **Use Case**: Pull a live stream from a remote studio and serve it to thousands of listeners via HLS + CDN.
+
+```bash
+curl -X POST http://localhost:8080/inject \
+  -d '{
+    "station_id": "radio1",
+    "type": "playlist",
+    "files": ["http://icecast-server.com:8000/live.mp3"]
+  }'
+```
 
 ## Quick Start
 
@@ -70,7 +85,8 @@ You can download pre-compiled binaries for your platform from the [releases](./r
 Edit `station.cfg` to define your radio stations:
 ```ini
 # station_id  output_path  playlist_path [bitrate_flags]
-radio1        output=./output/radio1  playlist=./music/pop aac128=true opus96=true aac64=false
+radio1  output=/var/www/hls/radio1  playlist=/home/user/music  aac128=true hls_time=2
+radio2  output=/var/www/hls/radio2  playlist=/home/user/jazz   aac128=true hls_time=10
 ```
 
 ### 4. Run
@@ -121,6 +137,29 @@ On a entry-level VPS (1 Core, 1GB RAM, 1Gbps Port):
 - **More Stations**: Increase your CPU cores. FFmpeg is the primary CPU consumer.
 - **More Listeners**: Increase your network bandwidth or use a CDN (Cloudflare, CloudFront, etc.) to cache the HLS segments.
     - **Note on CDN**: While live streams are ephemeral, a CDN is highly effective for "request collapsing." If 1,000 listeners request the same 10-second audio segment simultaneously, the CDN fetches it once from your origin and serves it 1,000 times from its edge, saving massive bandwidth on your server.
+
+### ⚡ RAM Disk (tmpfs) Optimization
+For "Low Latency" setups (e.g., 2-second segments), it is highly recommended to use a **RAM Disk** to store the HLS segments. This prevents excessive SSD wear and provides near-zero I/O latency.
+
+**How to set up on Linux:**
+1. Create a mount point: `sudo mkdir -p /var/www/hls`
+2. Mount it as tmpfs (e.g., 512MB):
+   ```bash
+   sudo mount -t tmpfs -o size=512M tmpfs /var/www/hls
+   ```
+3. To make it persistent, add this to `/etc/fstab`:
+   ```bash
+   tmpfs /var/www/hls tmpfs defaults,size=512M 0 0
+   ```
+
+### 🚀 Ultimate Scaling: The 500,000+ Listeners Challenge
+Believe it or not, you can serve **500,000 concurrent listeners** using a tiny **1 Core / 1GB RAM VPS**. How?
+1. **The Engine**: Your 1 Core VPS handles the audio encoding (FFmpeg) and generates HLS segments. This uses ~15% CPU.
+2. **The Shield**: You put the streamer behind **Cloudflare** (or any CDN).
+3. **The Magic**: When 500,000 people listen, they aren't hitting your VPS. They hit Cloudflare's edge servers. Cloudflare fetches the latest 10-second audio segment from your VPS **only once** and distributes it to all 500,000 listeners.
+4. **The Result**: Your VPS bandwidth usage remains at ~128kbps (the cost of 1 stream), while Cloudflare serves **64 Gbps** of traffic to the world.
+
+**Go Audio Streamer + CDN = Infinite Scalability.**
 
 ## Systemd Service
 A template for systemd service is provided in `streamer.service`. Use the `install-service.sh` script to set it up on Linux servers.

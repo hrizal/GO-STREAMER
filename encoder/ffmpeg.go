@@ -77,7 +77,7 @@ func (ae *AudioEngine) startFFmpeg() error {
 				"-b:a", v.Bitrate,
 				"-ac", v.Channels, "-ar", v.SampleRate,
 				"-f", "hls",
-				"-hls_time", strconv.Itoa(int(SegmentDur)),
+				"-hls_time", strconv.Itoa(ae.station.Config.HlsTime),
 				"-hls_list_size", strconv.Itoa(NumSlots),
 				"-hls_flags", hlsFlags,
 				"-hls_segment_type", "fmp4",
@@ -92,7 +92,7 @@ func (ae *AudioEngine) startFFmpeg() error {
 				"-b:a", v.Bitrate,
 				"-ac", v.Channels, "-ar", v.SampleRate,
 				"-f", "segment",
-				"-segment_time", strconv.Itoa(int(SegmentDur)),
+				"-segment_time", strconv.Itoa(ae.station.Config.HlsTime),
 				// Removed -segment_wrap to avoid promotion logic issues
 				// Removed -segment_list_flags +live which might cause 'Invalid argument'
 				filepath.Join(v.Dir, "raw_seg_%d.ts"),
@@ -423,14 +423,14 @@ func (ae *AudioEngine) manageManualPlaylist(dir string) {
 		sb.WriteString("#EXTM3U\n")
 		sb.WriteString("#EXT-X-VERSION:3\n")
 		sb.WriteString("#EXT-X-ALLOW-CACHE:NO\n")
-		sb.WriteString("#EXT-X-TARGETDURATION:10\n")
+		sb.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", ae.station.Config.HlsTime))
 		sb.WriteString(fmt.Sprintf("#EXT-X-MEDIA-SEQUENCE:%d\n", sequence))
 
 		for i := 0; i < numSegs; i++ {
 			idx := (firstIdx + i) % 10
 			dur := durations[idx]
 			if dur <= 0 {
-				dur = 10.0
+				dur = float64(ae.station.Config.HlsTime)
 			}
 			sb.WriteString(fmt.Sprintf("#EXTINF:%.6f,\n", dur))
 			sb.WriteString(fmt.Sprintf("seg_%d.ts?t=%d\n", idx, lastMods[idx].Unix()))
