@@ -47,14 +47,14 @@ type ChannelStatus struct {
 
 type AudioMixer struct {
 	Channels   []*MixerChannel
-	Output     io.WriteCloser
+	Output     io.Writer
 	mu         sync.Mutex
 	running    bool
 	stopChan   chan struct{}
 	duckFactor float64
 }
 
-func NewAudioMixer(output io.WriteCloser, numChannels int) *AudioMixer {
+func NewAudioMixer(output io.Writer, numChannels int) *AudioMixer {
 	m := &AudioMixer{
 		Output:     output,
 		stopChan:   make(chan struct{}),
