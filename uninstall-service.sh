@@ -1,5 +1,5 @@
 #!/bin/bash
-# Uninstall Go Audio Streamer service
+# Uninstall Go Audio Broadcaster service
 # Run as root: sudo bash uninstall-service.sh
 
 set -e

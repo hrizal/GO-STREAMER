@@ -1,4 +1,4 @@
-# Nginx Configuration Example for Go Audio Streamer
+# Nginx Configuration Example for Go Audio Broadcaster
 # Location: /etc/nginx/sites-available/streamer
 
 server {

@@ -1,4 +1,4 @@
-# Apache Configuration Example for Go Audio Streamer
+# Apache Configuration Example for Go Audio Broadcaster
 # Location: /etc/apache2/sites-available/streamer.conf
 
 <VirtualHost *:80>

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Go Audio Streamer as systemd service
+# Install Go Audio Broadcaster as systemd service
 # Run this script as root: sudo bash install-service.sh
 
 set -e
@@ -9,7 +9,7 @@ SERVICE_SRC="/opt/streamer/streamer.service"
 SERVICE_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 BINARY="/opt/streamer/streamer"
 
-echo "=== Go Audio Streamer Service Installation ==="
+echo "=== Go Audio Broadcaster Service Installation ==="
 echo ""
 
 # Check station.cfg exists

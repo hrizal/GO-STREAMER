@@ -1,6 +1,6 @@
-# Go Audio Streamer - Pre-compiled Binaries
+# Go Audio Broadcaster - Pre-compiled Binaries
 
-These are the pre-compiled binaries for Go Audio Streamer. You don't need to install Go to run these, but you **MUST** have FFmpeg installed.
+These are the pre-compiled binaries for Go Audio Broadcaster. You don't need to install Go to run these, but you **MUST** have FFmpeg installed.
 
 ## 🚀 How to use
 

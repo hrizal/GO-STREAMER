@@ -73,7 +73,7 @@ func (h *Handler) handlePort80(w http.ResponseWriter, r *http.Request) {
 	// If it's just "/", show a simple text info or list of stations
 	if path == "" {
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("Go Audio Streamer - Active Stations:\n\n"))
+		w.Write([]byte("Go Audio Broadcaster - Active Stations:\n\n"))
 		for _, id := range h.manager.ListStations() {
 			w.Write([]byte("- http://" + r.Host + "/" + id + "/\n"))
 		}

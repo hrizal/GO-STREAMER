@@ -1,6 +1,6 @@
 @echo off
-title Go Audio Streamer - Windows Setup
-echo === Go Audio Streamer - Windows Setup ===
+title Go Audio Broadcaster - Windows Setup
+echo === Go Audio Broadcaster - Windows Setup ===
 echo.
 
 :: 1. Check for FFmpeg

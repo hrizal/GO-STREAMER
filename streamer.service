@@ -1,5 +1,5 @@
 [Unit]
-Description=Go Audio Streamer - HLS Adaptive Bitrate Streaming
+Description=Go Audio Broadcaster - HLS Adaptive Bitrate Streaming
 Documentation=https://github.com/streamer
 After=network.target
 Wants=network-online.target

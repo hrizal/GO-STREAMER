@@ -1,4 +1,4 @@
-# Go Audio Streamer
+# Go Audio Broadcaster
 
 A high-performance audio streaming server written in Go. It supports real-time audio mixing, HLS adaptive bitrate streaming, and dynamic station management via REST API.
 
@@ -33,16 +33,16 @@ Built-in software mixer with 8 independent input channels:
 When a track is played on the **Priority Channel (Channel 0)**, the mixer can automatically "duck" (lower the volume) of all other active channels. This is perfect for radio announcers or voice-overs over background music.
 
 ### 4. Icecast/Shoutcast to HLS Relay
-You can use Go Audio Streamer as a powerful relay. Instead of local files, you can inject a network URL to the `/inject` API. Pull a live stream from a remote studio and serve it to thousands of listeners via HLS + CDN.
+You can use Go Audio Broadcaster as a powerful relay. Instead of local files, you can inject a network URL to the `/inject` API. Pull a live stream from a remote studio and serve it to thousands of listeners via HLS + CDN.
 
 ### 📻 Traditional "Icecast-style" Streaming (MP3)
-Go Audio Streamer also provides a continuous progressive MP3 stream for legacy players (Winamp, VLC, Mobile Apps).
+Go Audio Broadcaster also provides a continuous progressive MP3 stream for legacy players (Winamp, VLC, Mobile Apps).
 - **URL**: `http://your-ip:8080/stream/{station_id}.mp3`
 - **⚠️ Warning**: Traditional streaming creates a **direct, persistent connection** to your server. Unlike HLS, it **cannot be cached by CDNs** (like Cloudflare). 
 - **Bandwidth Calculation**: 1,000 listeners at 128kbps = ~128Mbps constant bandwidth usage from your VPS origin. Use HLS for massive scale!
 
 ### 💡 Pro Tip: Multi-Station "Simulcast" Broadcaster
-Since Go Audio Streamer supports multiple independent stations, you can create a radio network with different genres (e.g., `pop`, `jazz`, `rock`) and have **one announcer speak on all of them simultaneously**.
+Since Go Audio Broadcaster supports multiple independent stations, you can create a radio network with different genres (e.g., `pop`, `jazz`, `rock`) and have **one announcer speak on all of them simultaneously**.
 - **How**: Send a `/breaking` API request to all station IDs with the same announcer audio file. 
 - **Effect**: All stations will automatically "duck" their respective music genres and broadcast the announcer's voice at the exact same time.
 
@@ -117,7 +117,7 @@ curl -X POST http://localhost:8080/inject \
 
 ## Resource Usage & Scaling
 
-The Go Audio Streamer is designed to be lightweight and efficient. You can further reduce CPU usage by disabling bitrates you don't need in your configuration.
+The Go Audio Broadcaster is designed to be lightweight and efficient. You can further reduce CPU usage by disabling bitrates you don't need in your configuration.
 
 ### Typical Resource Consumption (Per Station)
 For a single station running with all 6 variants (3 AAC, 3 Opus):
@@ -159,7 +159,7 @@ Believe it or not, you can serve **500,000 concurrent listeners** using a tiny *
 3. **The Magic**: When 500,000 people listen, they aren't hitting your VPS. They hit Cloudflare's edge servers. Cloudflare fetches the latest 10-second audio segment from your VPS **only once** and distributes it to all 500,000 listeners.
 4. **The Result**: Your VPS bandwidth usage remains at ~128kbps (the cost of 1 stream), while Cloudflare serves **64 Gbps** of traffic to the world.
 
-**Go Audio Streamer + CDN = Infinite Scalability.**
+**Go Audio Broadcaster + CDN = Infinite Scalability.**
 
 ## Systemd Service
 A template for systemd service is provided in `streamer.service`. Use the `install-service.sh` script to set it up on Linux servers.

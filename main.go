@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	AppName       = "Go Audio Streamer"
+	AppName       = "Go Audio Broadcaster"
 	AppVersion    = "1.0.0"
 	StationConfig = "station.cfg"
 )
@@ -180,7 +180,7 @@ func main() {
 		log.Printf("Server stopped: %v", err)
 	}
 
-	log.Println("Go Audio Streamer shutdown complete.")
+	log.Println("Go Audio Broadcaster shutdown complete.")
 }
 
 // loadStationIDs reads station config file.

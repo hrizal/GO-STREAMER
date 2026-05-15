@@ -1,5 +1,5 @@
 #!/bin/bash
-# Quick Installer for Go Audio Streamer
+# Quick Installer for Go Audio Broadcaster
 # Target: Linux (Ubuntu/Debian recommended)
 
 set -e
@@ -9,7 +9,7 @@ RED='\033[0-31m'
 GREEN='\033[0-32m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== Go Audio Streamer - Quick Installer ===${NC}"
+echo -e "${GREEN}=== Go Audio Broadcaster - Quick Installer ===${NC}"
 echo "This script will install FFmpeg, setup directories, and start the streamer service."
 echo ""
 
