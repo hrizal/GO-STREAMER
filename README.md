@@ -33,18 +33,13 @@ Built-in software mixer with 8 independent input channels:
 When a track is played on the **Priority Channel (Channel 0)**, the mixer can automatically "duck" (lower the volume) of all other active channels. This is perfect for radio announcers or voice-overs over background music.
 
 ### 4. Icecast/Shoutcast to HLS Relay
-You can use Go Audio Streamer as a powerful relay. Instead of local files, you can inject a network URL:
-- **How it works**: Simply send the URL of an existing Icecast/Shoutcast stream to the `/inject` API. 
-- **Use Case**: Pull a live stream from a remote studio and serve it to thousands of listeners via HLS + CDN.
+You can use Go Audio Streamer as a powerful relay. Instead of local files, you can inject a network URL to the `/inject` API. Pull a live stream from a remote studio and serve it to thousands of listeners via HLS + CDN.
 
-```bash
-curl -X POST http://localhost:8080/inject \
-  -d '{
-    "station_id": "radio1",
-    "type": "playlist",
-    "files": ["http://icecast-server.com:8000/live.mp3"]
-  }'
-```
+### 📻 Traditional "Icecast-style" Streaming (MP3)
+Go Audio Streamer also provides a continuous progressive MP3 stream for legacy players (Winamp, VLC, Mobile Apps).
+- **URL**: `http://your-ip:8080/stream/{station_id}.mp3`
+- **⚠️ Warning**: Traditional streaming creates a **direct, persistent connection** to your server. Unlike HLS, it **cannot be cached by CDNs** (like Cloudflare). 
+- **Bandwidth Calculation**: 1,000 listeners at 128kbps = ~128Mbps constant bandwidth usage from your VPS origin. Use HLS for massive scale!
 
 ### 💡 Pro Tip: Multi-Station "Simulcast" Broadcaster
 Since Go Audio Streamer supports multiple independent stations, you can create a radio network with different genres (e.g., `pop`, `jazz`, `rock`) and have **one announcer speak on all of them simultaneously**.
