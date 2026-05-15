@@ -5,9 +5,9 @@ These are the pre-compiled binaries for Go Audio Streamer. You don't need to ins
 ## 🚀 How to use
 
 1. **Download** the binary for your operating system:
-   - Linux (amd64/arm64)
-   - Windows (amd64)
-   - macOS (Intel/Silicon)
+   - [Linux (amd64)](./streamer-linux-amd64) / [Linux (arm64)](./streamer-linux-arm64)
+   - [Windows (amd64)](./streamer-windows-amd64.exe)
+   - [macOS Intel (amd64)](./streamer-darwin-amd64) / [macOS Silicon (arm64)](./streamer-darwin-arm64)
 
 2. **Install FFmpeg**:
    Make sure `ffmpeg` is installed and accessible from your terminal/command prompt.
