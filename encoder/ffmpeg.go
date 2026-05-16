@@ -307,13 +307,7 @@ func (ae *AudioEngine) Execute(trans Transition) error {
 	// Stop previous process on this channel to avoid interleaving data
 	ae.StopChannel(channelID)
 	
-	args := []string{
-		"-re",
-		"-i", trans.NextFile,
-		"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-		"-ac", "2", "-ar", "44100",
-		"-f", "s16le", "-acodec", "pcm_s16le", "-",
-	}
+	args := ae.buildFeederArgs(trans.NextFile)
 
 	// Jalankan feeder (blocking dalam goroutine pemanggil Execute)
 	if err := ae.feedStream(args, channelID); err != nil {
@@ -331,17 +325,46 @@ func (ae *AudioEngine) PlayInstant(file string, channelID int) {
 		log.Printf("%s [Encoder] PlayInstant: %s (Channel: %d)", 
 			ae.station.LogPrefix, filepath.Base(file), channelID)
 		
-		args := []string{
-			"-re",
-			"-i", file,
-			"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-			"-ac", "2", "-ar", "44100",
-			"-f", "s16le", "-acodec", "pcm_s16le", "-",
-		}
+		args := ae.buildFeederArgs(file)
 		if err := ae.feedStream(args, channelID); err != nil {
 			log.Printf("%s [Encoder] PlayInstant error: %v", ae.station.LogPrefix, err)
 		}
 	}()
+}
+
+func (ae *AudioEngine) buildFeederArgs(input string) []string {
+	var inputArgs []string
+	isDevice := false
+
+	if strings.HasPrefix(input, "device:") {
+		isDevice = true
+		parts := strings.SplitN(input, ":", 3)
+		if len(parts) >= 2 {
+			driver := parts[1] // wasapi, alsa, pulse, dshow
+			device := "default"
+			if len(parts) == 3 {
+				device = parts[2]
+			}
+			inputArgs = []string{"-f", driver, "-i", device}
+		} else {
+			inputArgs = []string{"-i", input}
+		}
+	} else {
+		inputArgs = []string{"-i", input}
+	}
+
+	args := []string{}
+	if !isDevice {
+		args = append(args, "-re") // Only use -re for files/URLs
+	}
+	
+	args = append(args, inputArgs...)
+	args = append(args,
+		"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+		"-ac", "2", "-ar", "44100",
+		"-f", "s16le", "-acodec", "pcm_s16le", "-",
+	)
+	return args
 }
 
 func (ae *AudioEngine) manageManualPlaylist(dir string) {

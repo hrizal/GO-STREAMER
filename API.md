@@ -115,6 +115,37 @@ Content-Type: application/json
 - If both queues are empty → automatically plays `silent_5s.mp3` (looping silence).
 - `mode: replace` only applies to `type: playlist`, not `insert`.
 
+### Hardware Audio Input
+
+You can capture live audio from your system's hardware (Microphone or Speaker Loopback) by using the `device:` prefix instead of a file path.
+
+**Format:** `device:[driver]:[device_name]`
+
+| OS | Driver | Example |
+|----|--------|---------|
+| **Windows** | `wasapi` | `device:wasapi:default` |
+| **Linux (Pulse)** | `pulse` | `device:pulse:default` |
+| **Linux (ALSA)** | `alsa` | `device:alsa:hw:0` |
+
+**Discovering Device Names:**
+If `default` doesn't work, you can list available devices using FFmpeg:
+```bash
+# Windows
+ffmpeg -list_devices true -f wasapi -i dummy
+
+# Linux (ALSA)
+aplay -l
+```
+
+**Usage Example (API):**
+```bash
+curl -X POST "http://localhost:8080/inject?station_id=radio1&type=insert" \
+     -H "Content-Type: application/json" \
+     -d '{"files": ["device:wasapi:default"]}'
+```
+
+---
+
 ### Audio Format Support
 
 | Format | Extensions |
