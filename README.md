@@ -13,6 +13,7 @@ A high-performance audio streaming server written in Go. It supports real-time a
 - **Health Monitoring**: Built-in health check and real-time station status.
 - **Easy Station Shortcuts**: Automatic listener on port 80 (if available) for easy access: `http://yourip/station_id/`. Can be disabled using `-shortcuts=false`.
 - **Wide Format Support**: Supports MP3, WAV, OGG, FLAC, AAC, M4A, and WMA.
+- **Video to Audio**: Automatically extracts audio from video files (MP4, MKV, AVI) in your playlist.
 - **Icecast/Shoutcast Relay**: Can pull remote streams and convert them to HLS in real-time.
 
 ## 🎧 Advanced Audio Engine
