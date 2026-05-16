@@ -85,7 +85,7 @@ func (ae *AudioEngine) startFFmpeg() error {
 				"-hls_list_size", strconv.Itoa(NumSlots),
 				"-hls_flags", hlsFlags,
 				"-hls_segment_type", "fmp4",
-				"-hls_segment_filename", filepath.Join(v.Dir, "seg_%d.m4s"),
+				"-hls_segment_filename", filepath.Join(v.Dir, "seg_%d.mp4"),
 				filepath.Join(v.Dir, "index.m3u8"),
 			)
 		} else {
@@ -113,8 +113,18 @@ func (ae *AudioEngine) startFFmpeg() error {
 		return fmt.Errorf("stdin pipe: %w", err)
 	}
 
+	// Capture stderr directly to the main log for unified debugging
+	cmd.Stderr = log.Writer()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start ffmpeg: %w", err)
+	}
+
+	ae.ffmpegCmd = cmd
+	ae.ffmpegIn = stdin
+	ae.started = true
+
 	var multiOut io.Writer = stdin
-	var rtmpStdin io.WriteCloser
 
 	// Prepare RTMP Relay if configured
 	if ae.station.Config.RTMP != "" {
@@ -123,14 +133,15 @@ func (ae *AudioEngine) startFFmpeg() error {
 		vIdx := 0
 		lIdx := -1
 		
-		// Input 0: Video Background (File or Synthetic Misty Fog)
-		if ae.station.Config.VideoLoop != "" {
+		// Input 0: Background (Static Image, Video Loop, or Synthetic Misty Fog)
+		if ae.station.Config.BackgroundImage != "" {
+			rtmpArgs = append(rtmpArgs, "-loop", "1", "-i", ae.station.Config.BackgroundImage)
+		} else if ae.station.Config.VideoLoop != "" {
 			rtmpArgs = append(rtmpArgs, "-stream_loop", "-1", "-i", ae.station.Config.VideoLoop)
 		} else {
-			// Generate a synthetic "Misty Purple/Blue" moving fog using lavfi
-			// We use blurred testsrc2 with hue shifting for a chill ambient look
-			mistyFilter := "testsrc2=s=640x360:r=15,boxblur=40:40,hue=h='t*5':s=2"
-			rtmpArgs = append(rtmpArgs, "-f", "lavfi", "-i", mistyFilter)
+			// Default to a solid dark gray background for a clean look
+			bgFilter := "color=c=0x222222:s=640x360:r=15"
+			rtmpArgs = append(rtmpArgs, "-f", "lavfi", "-i", bgFilter)
 		}
 		vIdx = 0
 		nextIdx := 1
@@ -152,21 +163,29 @@ func (ae *AudioEngine) startFFmpeg() error {
 		
 		// 1. Draw Text (if configured)
 		if ae.station.Config.DisplayText != "" {
+			// Using a common Linux font path, but we'll try to let ffmpeg find a default if it fails
 			filter += fmt.Sprintf("; [bg]drawtext=text='%s':fontcolor=white:fontsize=36:x=(w-text_w)/2:y=(h-text_h)/2:shadowcolor=black@0.6:shadowx=3:shadowy=3[txt]", 
 				ae.station.Config.DisplayText)
 			lastStage = "[txt]"
 		}
 
-		// 2. Overlay Logo (if exists)
+		// 2. Overlay Logo (if exists) - Centered and Auto-scaled
 		if lIdx != -1 {
-			filter += fmt.Sprintf("; %s[%d:v]overlay=main_w-overlay_w-20:20[outv]", lastStage, lIdx)
+			// We scale the logo to fit nicely in 144p/360p
+			logoScale := "250" // Default for 360p
+			if strings.Contains(filter, "1280:720") {
+				logoScale = "400" // Larger for 720p
+			}
+			filter += fmt.Sprintf("; [%d:v]scale=%s:-1[limg]; %s[limg]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[outv]", lIdx, logoScale, lastStage)
 			lastStage = "[outv]"
 		}
 
 		rtmpArgs = append(rtmpArgs, 
 			"-filter_complex", filter,
 			"-map", lastStage, "-map", fmt.Sprintf("%d:a", aIdx),
-			"-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-g", "30",
+			"-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-g", "30",
+			"-b:v", "800k", "-maxrate", "800k", "-minrate", "800k", "-bufsize", "1600k",
+			"-nal-hrd", "cbr",
 			"-c:a", "aac", "-b:a", "128k", "-ar", "44100",
 			"-f", "flv", ae.station.Config.RTMP,
 		)
@@ -178,24 +197,12 @@ func (ae *AudioEngine) startFFmpeg() error {
 			if err := rCmd.Start(); err == nil {
 				log.Printf("%s [Encoder] RTMP Relay started to: %s (VideoLoop=%v, Logo=%v)", 
 					ae.station.LogPrefix, ae.station.Config.RTMP, ae.station.Config.VideoLoop != "", ae.station.Config.Logo != "")
-				rtmpStdin = rStdin
 				multiOut = io.MultiWriter(multiOut, rStdin)
 			} else {
 				log.Printf("%s [Encoder] Warning: Failed to start RTMP Relay: %v", ae.station.LogPrefix, err)
 			}
 		}
 	}
-
-	// Capture stderr directly to the main log for unified debugging
-	cmd.Stderr = log.Writer()
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start ffmpeg: %w", err)
-	}
-
-	ae.ffmpegCmd = cmd
-	ae.ffmpegIn = stdin
-	ae.started = true
 
 	if ae.station.Config.MP3 {
 		streamArgs := []string{
@@ -209,7 +216,6 @@ func (ae *AudioEngine) startFFmpeg() error {
 		sCmd.Stderr = log.Writer()
 		if err := sCmd.Start(); err == nil {
 			ae.streamCmd = sCmd
-			// Fan out the MP3 output to all connected listeners
 			go ae.Broadcaster.BroadcastFrom(sStdout)
 			
 			// Combine all active outputs

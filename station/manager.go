@@ -134,14 +134,6 @@ func loadStationConfigs(path string) ([]types.StationConfigEntry, error) {
 			switch key {
 			case "random":
 				cfg.Random = boolVal
-			case "rtmp":
-				cfg.RTMP = val
-			case "logo":
-				cfg.Logo = val
-			case "video_loop":
-				cfg.VideoLoop = val
-			case "display_text":
-				cfg.DisplayText = val
 			case "loop":
 				cfg.Loop = boolVal
 			case "unique":
@@ -183,6 +175,16 @@ func loadStationConfigs(path string) ([]types.StationConfigEntry, error) {
 				if n, err := fmt.Sscanf(val, "%d", &t); err == nil && n == 1 {
 					cfg.HlsTime = t
 				}
+			case "rtmp":
+				cfg.RTMP = val
+			case "logo":
+				cfg.Logo = val
+			case "video_loop":
+				cfg.VideoLoop = val
+			case "background", "background_image":
+				cfg.BackgroundImage = val
+			case "display_text":
+				cfg.DisplayText = val
 			}
 		}
 		entries = append(entries, types.StationConfigEntry{
@@ -199,11 +201,19 @@ func loadStationConfigs(path string) ([]types.StationConfigEntry, error) {
 }
 
 func (m *Manager) CreateStation(id string) (*StationRunner, error) {
-	return m.createStationWithDir(id, "", "")
+	runner, err := m.createStationWithDir(id, "", "")
+	if err == nil {
+		go runner.Run()
+	}
+	return runner, err
 }
 
 func (m *Manager) CreateStationWithOutput(id string, outputDir string) (*StationRunner, error) {
-	return m.createStationWithDir(id, outputDir, "")
+	runner, err := m.createStationWithDir(id, outputDir, "")
+	if err == nil {
+		go runner.Run()
+	}
+	return runner, err
 }
 
 // CreateStationFromEntry creates a station from a config entry, with auto playlist inject
@@ -212,10 +222,15 @@ func (m *Manager) CreateStationFromEntry(entry types.StationConfigEntry) (*Stati
 	if err != nil {
 		return nil, err
 	}
-	// Apply config
+
+	// Apply config BEFORE starting the runner
 	runner.Station.Lock()
 	runner.Station.Config = entry.Config
 	runner.Station.Unlock()
+
+	// Now start the runner
+	go runner.Run()
+
 	return runner, nil
 }
 
@@ -241,7 +256,9 @@ func (m *Manager) createStationWithDir(id string, outputDir string, playlistDir 
 	}
 
 	m.stations[id] = runner
-	go runner.Run()
+	
+	// Apply config if provided (moved from CreateStationFromEntry)
+	// go runner.Run() will be called after config is set
 
 	// Auto-inject playlist if configured
 	if playlistDir != "" {

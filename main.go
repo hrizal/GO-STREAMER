@@ -188,8 +188,8 @@ func main() {
 // Format per line: station_id  [key=value ...]
 // Supported keys: random, loop, unique (bool), output (path)
 // Example:
-//   radio1  output=/var/www/hls/radio1  playlist=/home/user/music random=false  loop=true  unique=true
-//   radio2  output=/var/www/hls/radio2  playlist=/home/user/jazz  random=true   loop=true  unique=true
+//   musikita  output=/var/www/musikita/webapp/hls  random=false  loop=true  unique=true
+//   ruangkita output=/var/www/ruangkita/webapp/hls  random=true   loop=true  unique=true
 func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -286,6 +286,21 @@ func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 				if n, err := strconv.Atoi(val); err == nil {
 					cfg.Crossfade = n
 				}
+			case "rtmp":
+				cfg.RTMP = val
+				log.Printf("[Config] Station %s: Found RTMP=%s", stationID, val)
+			case "logo":
+				cfg.Logo = val
+				log.Printf("[Config] Station %s: Found Logo=%s", stationID, val)
+			case "video_loop":
+				cfg.VideoLoop = val
+				log.Printf("[Config] Station %s: Found VideoLoop=%s", stationID, val)
+			case "background", "background_image":
+				cfg.BackgroundImage = val
+				log.Printf("[Config] Station %s: Found BackgroundImage=%s", stationID, val)
+			case "display_text":
+				cfg.DisplayText = val
+				log.Printf("[Config] Station %s: Found DisplayText=%s", stationID, val)
 			}
 		}
 

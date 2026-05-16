@@ -1,5 +1,5 @@
 # Go Audio Broadcaster
-> **🚀 Ready for live streaming to TikTok, YouTube, and Facebook!**
+> **🚀 Ready for live streaming to TikTok, YouTube, Facebook!, or your own web!**
 
 A high-performance audio streaming server written in Go. It supports real-time audio mixing, HLS adaptive bitrate streaming, and dynamic station management via REST API.
 

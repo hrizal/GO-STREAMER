@@ -95,7 +95,8 @@ type PlaybackConfig struct {
 	RTMP        string `json:"rtmp"`
 	Logo        string `json:"logo"`
 	VideoLoop   string `json:"video_loop"`
-	DisplayText string `json:"display_text"`
+	BackgroundImage string `json:"background_image"`
+	DisplayText     string `json:"display_text"`
 	// Crossfade duration in seconds
 	Crossfade int `json:"crossfade"`
 }
