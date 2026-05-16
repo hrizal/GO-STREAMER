@@ -24,9 +24,10 @@ const (
 type OpusBitrateLevel int
 
 const (
-	OpusBitrate32 OpusBitrateLevel = 32
-	OpusBitrate64 OpusBitrateLevel = 64
-	OpusBitrate96 OpusBitrateLevel = 96
+	OpusBitrate32  OpusBitrateLevel = 32
+	OpusBitrate64  OpusBitrateLevel = 64
+	OpusBitrate96  OpusBitrateLevel = 96
+	OpusBitrate128 OpusBitrateLevel = 128
 )
 
 func (b BitrateLevel) Label() string {
@@ -59,6 +60,8 @@ func (b OpusBitrateLevel) Label() string {
 		return "64k"
 	case OpusBitrate96:
 		return "96k"
+	case OpusBitrate128:
+		return "128k"
 	default:
 		return "64k"
 	}
@@ -82,9 +85,10 @@ type PlaybackConfig struct {
 	AAC64  bool `json:"aac64"`
 	AAC96  bool `json:"aac96"`
 	AAC128 bool `json:"aac128"`
-	Opus32 bool `json:"opus32"`
-	Opus64 bool `json:"opus64"`
-	Opus96 bool `json:"opus96"`
+	Opus32  bool `json:"opus32"`
+	Opus64  bool `json:"opus64"`
+	Opus96  bool `json:"opus96"`
+	Opus128 bool `json:"opus128"`
 	MP3    bool `json:"mp3"`
 	// HLS segment duration
 	HlsTime int `json:"hls_time"`
@@ -103,6 +107,7 @@ func DefaultPlaybackConfig() PlaybackConfig {
 		Opus32:    true,
 		Opus64:    true,
 		Opus96:    true,
+		Opus128:   true,
 		MP3:       true,
 		HlsTime:   10,
 		Crossfade: 3,
@@ -221,8 +226,9 @@ type BitrateVariants struct {
 	AAC128 string
 	// Opus variants (fmp4 container)
 	Opus32 string
-	Opus64 string
-	Opus96 string
+	Opus64  string
+	Opus96  string
+	Opus128 string
 }
 
 func NewBitrateVariants(stationDir string) BitrateVariants {
@@ -232,7 +238,8 @@ func NewBitrateVariants(stationDir string) BitrateVariants {
 		AAC128: stationDir + "/aac/128k",
 		Opus32: stationDir + "/opus/32k",
 		Opus64: stationDir + "/opus/64k",
-		Opus96: stationDir + "/opus/96k",
+		Opus96:  stationDir + "/opus/96k",
+		Opus128: stationDir + "/opus/128k",
 	}
 }
 
@@ -241,7 +248,7 @@ func (bv BitrateVariants) AllAAC() []string {
 }
 
 func (bv BitrateVariants) AllOpus() []string {
-	return []string{bv.Opus32, bv.Opus64, bv.Opus96}
+	return []string{bv.Opus32, bv.Opus64, bv.Opus96, bv.Opus128}
 }
 
 func (bv BitrateVariants) All() []string {

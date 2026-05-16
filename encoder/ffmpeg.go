@@ -85,7 +85,7 @@ func (ae *AudioEngine) startFFmpeg() error {
 				"-hls_list_size", strconv.Itoa(NumSlots),
 				"-hls_flags", hlsFlags,
 				"-hls_segment_type", "fmp4",
-				"-hls_segment_filename", filepath.Join(v.Dir, "seg_%d.mp4"),
+				"-hls_segment_filename", filepath.Join(v.Dir, "seg_%d.m4s"),
 				filepath.Join(v.Dir, "index.m3u8"),
 			)
 		} else {
@@ -206,6 +206,9 @@ func (ae *AudioEngine) allVariants() []variantInfo {
 	}
 	if cfg.Opus96 {
 		variants = append(variants, variantInfo{ae.variants.Opus96, "libopus", "96k", "2", "48000", "hls", "mp4", true})
+	}
+	if cfg.Opus128 {
+		variants = append(variants, variantInfo{ae.variants.Opus128, "libopus", "128k", "2", "48000", "hls", "mp4", true})
 	}
 
 	// Fallback if none enabled (should not happen with default config)

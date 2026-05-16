@@ -256,6 +256,10 @@ func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 				cfg.Opus64 = boolVal
 			case "opus96":
 				cfg.Opus96 = boolVal
+			case "opus128":
+				cfg.Opus128 = boolVal
+			case "mp3":
+				cfg.MP3 = boolVal
 			case "output":
 				if filepath.IsAbs(val) {
 					outputDir = val
