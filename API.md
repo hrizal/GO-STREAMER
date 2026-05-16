@@ -16,7 +16,7 @@ GET /status?station_id={station_id}
 {
     "timestamp": "2026-05-14T05:30:00Z",
     "status": {
-        "station_id": "musikita",
+        "station_id": "radio1",
         "status": "playing",
         "previous_track": "Song A.mp3",
         "current_track": "Song B.mp3",
@@ -59,7 +59,7 @@ HTTP 400: station_id query parameter required
 
 **cURL:**
 ```bash
-curl "http://localhost:8080/status?station_id=musikita"
+curl "http://localhost:8080/status?station_id=radio1"
 ```
 
 ---
@@ -77,7 +77,7 @@ Content-Type: application/json
 
 ```json
 {
-    "station_id": "musikita",
+    "station_id": "radio1",
     "type": "playlist",
     "files": [
         "/path/to/song1.mp3",
@@ -129,7 +129,7 @@ Content-Type: application/json
 ```json
 {
     "status": "ok",
-    "station_id": "musikita",
+    "station_id": "radio1",
     "type": "playlist",
     "mode": "replace",
     "files": [
@@ -164,7 +164,7 @@ Content-Type: application/json
 {
     "status": "ok",
     "station_id": "radio3",
-    "output_dir": "/var/www/streamer/output/radio3"
+    "output_dir": "/path/to/output/radio3"
 }
 ```
 
@@ -202,7 +202,7 @@ Content-Type: application/json
 
 ```json
 {
-    "station_id": "musikita",
+    "station_id": "radio1",
     "type": "playlist",
     "filename": "Song A.mp3"
 }
@@ -223,7 +223,7 @@ Content-Type: application/json
 
 ```json
 {
-    "station_id": "musikita",
+    "station_id": "radio1",
     "type": "all"
 }
 ```
@@ -247,7 +247,7 @@ POST /station/config                   # Update config
 
 ```json
 {
-    "station_id": "musikita",
+    "station_id": "radio1",
     "config": {
         "random": true,
         "loop": false,
@@ -333,7 +333,7 @@ All endpoints allow access from any origin:
 <audio id="audio" controls></audio>
 <script>
     const hls = new Hls();
-    hls.loadSource('http://localhost:8080/hls/musikita/master.m3u8');
+    hls.loadSource('http://localhost:8080/hls/radio1/master.m3u8');
     hls.attachMedia(document.getElementById('audio'));
 </script>
 ```
@@ -369,6 +369,61 @@ Request ──> Inject Queue
 **Recommended Architecture:** Use a middleware/backend application (PHP, Node.js, etc.) on the same server to act as a bridge. Your main application should call the Streamer API via `localhost`, while exposing its own authenticated endpoints to the users.
 
 Always use a firewall or a reverse proxy with authentication to secure your production environment.
+
+---
+
+## 15. Mixer Controls (Volume & Mute)
+
+Each station has an 8-channel mixer. You can set volume and mute status per channel.
+
+### 15.1 Get Mixer Status
+```
+GET /mixer/status?station_id=radio1
+```
+
+### 15.2 Set Channel Volume
+```
+POST /mixer/volume
+Content-Type: application/json
+
+{
+    "station_id": "radio1",
+    "channel": 0,
+    "volume": 1.5
+}
+```
+| Field | Description |
+|-------|-------------|
+| `channel` | `0` (Announcer), `1-2` (Playlist), `3-7` (Spare) |
+| `volume` | `0.0` (Mute) to `2.0` (200% Gain) |
+
+### 15.3 Set Channel Mute
+```
+POST /mixer/mute
+Content-Type: application/json
+
+{
+    "station_id": "radio1",
+    "channel": 1,
+    "mute": true
+}
+```
+
+---
+
+## 16. Breaking Audio (Instant Play)
+
+Triggers an immediate audio broadcast on **Channel 0** (Announcer) with **Auto-Ducking** on other channels. Perfect for real-time announcements or breaking news.
+
+```
+POST /breaking
+Content-Type: application/json
+
+{
+    "station_id": "radio1",
+    "file": "/path/to/announcement/breaking.mp3"
+}
+```
 
 ---
 

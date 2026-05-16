@@ -57,7 +57,7 @@ Since Go Audio Broadcaster supports multiple independent stations, you can creat
 #### A. One-Click Installer (Linux Recommended)
 The fastest way to install is using the master installer, which automatically handles FFmpeg dependencies and systemd setup:
 ```bash
-git clone https://github.com/hrizal/GO-AUDIO-BROADCASTER.git
+git clone https://github.com/yourusername/go-audio-broadcaster.git
 cd GO-AUDIO-BROADCASTER
 chmod +x install.sh
 sudo ./install.sh
@@ -66,7 +66,7 @@ sudo ./install.sh
 #### B. Manual Build
 If you prefer to build manually:
 ```bash
-git clone https://github.com/hrizal/GO-AUDIO-BROADCASTER.git
+git clone https://github.com/yourusername/go-audio-broadcaster.git
 cd GO-AUDIO-BROADCASTER
 go build -o streamer main.go
 ```
@@ -97,8 +97,8 @@ You can download pre-compiled binaries for your platform from the [releases](./r
 Edit `station.cfg` to define your radio stations:
 ```ini
 # station_id  output_path  playlist_path [bitrate_flags]
-radio1  output=/var/www/hls/radio1  playlist=/home/user/music  aac128=true hls_time=2
-radio2  output=/var/www/hls/radio2  playlist=/home/user/jazz   aac128=true hls_time=10
+radio1  output=/path/to/hls/radio1  playlist=/path/to/music  aac128=true hls_time=2
+radio2  output=/path/to/hls/radio2  playlist=/path/to/jazz   aac128=true hls_time=10
 ```
 
 ### 4. Run
@@ -154,14 +154,14 @@ On a entry-level VPS (1 Core, 1GB RAM, 1Gbps Port):
 For "Low Latency" setups (e.g., 2-second segments), it is highly recommended to use a **RAM Disk** to store the HLS segments. This prevents excessive SSD wear and provides near-zero I/O latency.
 
 **How to set up on Linux:**
-1. Create a mount point: `sudo mkdir -p /var/www/hls`
+1. Create a mount point: `sudo mkdir -p /path/to/hls`
 2. Mount it as tmpfs (e.g., 512MB):
    ```bash
-   sudo mount -t tmpfs -o size=512M tmpfs /var/www/hls
+   sudo mount -t tmpfs -o size=512M tmpfs /path/to/hls
    ```
 3. To make it persistent, add this to `/etc/fstab`:
    ```bash
-   tmpfs /var/www/hls tmpfs defaults,size=512M 0 0
+   tmpfs /path/to/hls tmpfs defaults,size=512M 0 0
    ```
 
 ### 🚀 Ultimate Scaling: The 500,000+ Listeners Challenge
