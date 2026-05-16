@@ -124,10 +124,12 @@ func (m *AudioMixer) mixAndWrite(size int) {
 		target = 0.2
 	}
 	if m.duckFactor > target {
-		m.duckFactor -= 0.1
+		// Ducking speed: 0.8 / 0.02 = 40 ticks * 20ms = 800ms fade-out
+		m.duckFactor -= 0.02
 		if m.duckFactor < target { m.duckFactor = target }
 	} else if m.duckFactor < target {
-		m.duckFactor += 0.05
+		// Recovery speed: 0.8 / 0.005 = 160 ticks * 20ms = 3.2 seconds fade-in
+		m.duckFactor += 0.005
 		if m.duckFactor > target { m.duckFactor = target }
 	}
 	duck := m.duckFactor
