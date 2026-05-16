@@ -124,25 +124,32 @@ func (ae *AudioEngine) startFFmpeg() error {
 	ae.ffmpegIn = stdin
 	ae.started = true
 
-	// --- Radio Stream (Continuous MP3) Setup ---
-	streamArgs := []string{
-		"-f", "s16le", "-ar", "44100", "-ac", "2", "-i", "-",
-		"-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "-",
+	if ae.station.Config.MP3 {
+		streamArgs := []string{
+			"-f", "s16le", "-ar", "44100", "-ac", "2", "-i", "-",
+			"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+			"-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "-",
+		}
+		sCmd := exec.Command("ffmpeg", streamArgs...)
+		sStdin, _ := sCmd.StdinPipe()
+		sStdout, _ := sCmd.StdoutPipe()
+		sCmd.Stderr = log.Writer()
+		if err := sCmd.Start(); err == nil {
+			ae.streamCmd = sCmd
+			// Fan out the MP3 output to all connected listeners
+			go ae.Broadcaster.BroadcastFrom(sStdout)
+			
+			// Initialize and start Mixer (8 Channels) with HLS + MP3 output
+			multiOut := io.MultiWriter(stdin, sStdin)
+			ae.Mixer = NewAudioMixer(multiOut, 8)
+		} else {
+			log.Printf("%s [Encoder] Warning: Failed to start Radio Stream (MP3): %v", ae.station.LogPrefix, err)
+			ae.Mixer = NewAudioMixer(stdin, 8)
+		}
+	} else {
+		log.Printf("%s [Encoder] Radio Stream (MP3) is disabled in config", ae.station.LogPrefix)
+		ae.Mixer = NewAudioMixer(stdin, 8)
 	}
-	sCmd := exec.Command("ffmpeg", streamArgs...)
-	sStdin, _ := sCmd.StdinPipe()
-	sStdout, _ := sCmd.StdoutPipe()
-	sCmd.Stderr = log.Writer()
-	if err := sCmd.Start(); err == nil {
-		ae.streamCmd = sCmd
-		// Fan out the MP3 output to all connected listeners
-		go ae.Broadcaster.BroadcastFrom(sStdout)
-	}
-
-	// Initialize and start Mixer (8 Channels)
-	// We use a custom writer that splits output to HLS stdin and Radio Stream stdin
-	multiOut := io.MultiWriter(stdin, sStdin)
-	ae.Mixer = NewAudioMixer(multiOut, 8)
 	go ae.Mixer.Start()
 
 	log.Printf("%s [Encoder] FFmpeg Segmenter & Radio Streamer started", ae.station.LogPrefix)
@@ -294,9 +301,13 @@ func (ae *AudioEngine) Execute(trans Transition) error {
 	log.Printf("%s [Encoder] Playing: %s (Channel: %d, insert=%v)", 
 		ae.station.LogPrefix, filepath.Base(trans.NextFile), channelID, trans.IsInsert)
 	
+	// Stop previous process on this channel to avoid interleaving data
+	ae.StopChannel(channelID)
+	
 	args := []string{
 		"-re",
 		"-i", trans.NextFile,
+		"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
 		"-ac", "2", "-ar", "44100",
 		"-f", "s16le", "-acodec", "pcm_s16le", "-",
 	}
@@ -320,6 +331,7 @@ func (ae *AudioEngine) PlayInstant(file string, channelID int) {
 		args := []string{
 			"-re",
 			"-i", file,
+			"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
 			"-ac", "2", "-ar", "44100",
 			"-f", "s16le", "-acodec", "pcm_s16le", "-",
 		}

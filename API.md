@@ -30,7 +30,10 @@ GET /status?station_id={station_id}
             "aac128": true,
             "opus32": true,
             "opus64": true,
-            "opus96": true
+            "opus96": true,
+            "mp3": true,
+            "hls_time": 10,
+            "crossfade": 3
         },
         "insert_queue_length": 0,
         "playlist_queue_length": 3
@@ -105,7 +108,7 @@ Content-Type: application/json
 | Type | Priority | Crossfade | Use Case |
 |------|-----------|-----------|----------|
 | `insert` | 🥇 Highest | ❌ No crossfade | Bumpers, jingles, breaking news, ads |
-| `playlist` | 🥈 Normal | ✅ 3s Crossfade | Songs, regular tracks |
+| `playlist` | 🥈 Normal | ✅ Customizable | Songs, regular tracks |
 
 **Rules:**
 - `insert queue` MUST be empty before touching `playlist queue`.
@@ -257,7 +260,9 @@ POST /station/config                   # Update config
         "aac128": true,
         "opus32": false,
         "opus64": false,
-        "opus96": true
+        "opus96": true,
+        "mp3": false,
+        "crossfade": 5
     }
 }
 ```
@@ -343,21 +348,23 @@ All endpoints allow access from any origin:
 ## 13. Audio Processing Pipeline
 
 ```
-Request ──> Inject Queue
-                  │
-                  ▼
-          ┌── Insert? ──> Concat (no crossfade)
+Audio Source (File/URL)
           │
-          ▼  Playlist
-    ┌─ Prev=Silent? ──> Single file
-    │
-    │  Prev=Song
-    ▼
-    acrossfade=d=3 ──> loudnorm (EBU R128) ──> HLS Segmentation
-                                                      │
-                                                      ▼
-                                              Rolling 10 segments
-                                              seg_01.ts .. seg_10.ts
+          ▼
+   FFmpeg Decoder ──> [ Stage 1: LOUDNORM ] ──> Mixer Channel (0-7)
+                      (Per-track Normalization)        │
+                                                       ▼
+                                               8-Channel Mixer
+                                           (Ducking & Crossfading)
+                                                       │
+          ┌────────────────────────────────────────────┘
+          │
+          ▼
+ [ Stage 2: LOUDNORM ] ──> HLS / MP3 Segmentation
+ (Final Stream Limiter)             │
+                                    ▼
+                          Rolling 10-30 segments
+                          seg_01.ts .. seg_10.ts
 ```
 
 ---

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -187,8 +188,8 @@ func main() {
 // Format per line: station_id  [key=value ...]
 // Supported keys: random, loop, unique (bool), output (path)
 // Example:
-//   musikita  output=/var/www/musikita/webapp/hls  random=false  loop=true  unique=true
-//   ruangkita output=/var/www/ruangkita/webapp/hls  random=true   loop=true  unique=true
+//   radio1  output=/var/www/hls/radio1  playlist=/home/user/music random=false  loop=true  unique=true
+//   radio2  output=/var/www/hls/radio2  playlist=/home/user/jazz  random=true   loop=true  unique=true
 func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -276,6 +277,10 @@ func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 					} else {
 						playlistDir = val
 					}
+				}
+			case "crossfade":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Crossfade = n
 				}
 			}
 		}

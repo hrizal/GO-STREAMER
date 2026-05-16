@@ -135,11 +135,30 @@ func (m *AudioMixer) mixAndWrite(size int) {
 
 	for i, ch := range m.Channels {
 		ch.mu.Lock()
-		// Only pull data if there's a full chunk (size). If not, let it queue.
-		// This prevents "choppy" sound artifacts.
-		if !ch.active || len(ch.buffer) < size || ch.Muted {
+		if !ch.active || ch.Muted {
 			ch.mu.Unlock()
 			continue
+		}
+
+		// If we have data but less than 'size', pad with zeros to play the final bit
+		bufLen := len(ch.buffer)
+		var dataToMix []byte
+		if bufLen >= size {
+			dataToMix = ch.buffer[:size]
+			ch.buffer = ch.buffer[size:]
+		} else if bufLen > 0 {
+			// Pad the last chunk
+			dataToMix = make([]byte, size)
+			copy(dataToMix, ch.buffer)
+			ch.buffer = nil
+		} else {
+			ch.active = false
+			ch.mu.Unlock()
+			continue
+		}
+
+		if len(ch.buffer) == 0 {
+			ch.active = false
 		}
 
 		vol := ch.volume
@@ -148,14 +167,9 @@ func (m *AudioMixer) mixAndWrite(size int) {
 		}
 
 		for j := 0; j < size; j += 2 {
-			val := int16(binary.LittleEndian.Uint16(ch.buffer[j : j+2]))
+			val := int16(binary.LittleEndian.Uint16(dataToMix[j : j+2]))
 			v := float64(val) * vol
 			samples[j/2] += int32(v)
-		}
-
-		ch.buffer = ch.buffer[size:]
-		if len(ch.buffer) == 0 {
-			ch.active = false
 		}
 		ch.mu.Unlock()
 	}

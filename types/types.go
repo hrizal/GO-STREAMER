@@ -85,22 +85,27 @@ type PlaybackConfig struct {
 	Opus32 bool `json:"opus32"`
 	Opus64 bool `json:"opus64"`
 	Opus96 bool `json:"opus96"`
+	MP3    bool `json:"mp3"`
 	// HLS segment duration
 	HlsTime int `json:"hls_time"`
+	// Crossfade duration in seconds
+	Crossfade int `json:"crossfade"`
 }
 
 func DefaultPlaybackConfig() PlaybackConfig {
 	return PlaybackConfig{
-		Random: false,
-		Loop:   true,
-		Unique: true,
-		AAC64:  true,
-		AAC96:  true,
-		AAC128: true,
-		Opus32: true,
-		Opus64: true,
-		Opus96: true,
-		HlsTime: 10,
+		Random:    false,
+		Loop:      true,
+		Unique:    true,
+		AAC64:     true,
+		AAC96:     true,
+		AAC128:    true,
+		Opus32:    true,
+		Opus64:    true,
+		Opus96:    true,
+		MP3:       true,
+		HlsTime:   10,
+		Crossfade: 3,
 	}
 }
 

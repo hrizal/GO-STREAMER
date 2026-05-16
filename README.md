@@ -17,10 +17,10 @@ A high-performance audio streaming server written in Go. It supports real-time a
 
 ## 🎧 Advanced Audio Engine
 
-### 1. Auto-DJ & Smooth Crossfading
+### 1. Auto-DJ & Customizable Crossfading
 The streamer features an intelligent playback loop that acts as a 24/7 Auto-DJ. It automatically manages transitions between tracks:
-- **3-Second Crossfade**: When transitioning between regular playlist tracks, the engine overlaps the audio for 3 seconds to ensure a professional, gapless radio experience.
-- **Gapless Playback**: No silence between songs.
+- **Customizable Crossfade**: Transitions between tracks can be adjusted via the `crossfade` parameter in `station.cfg` (default 3 seconds).
+- **Gapless Playback**: Professional, gapless radio experience with no silence between songs.
 
 ### 2. 8-Channel Dynamic Mixer
 Built-in software mixer with 8 independent input channels:

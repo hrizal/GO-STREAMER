@@ -15,7 +15,7 @@ echo ""
 # Check station.cfg exists
 if [ ! -f "/opt/streamer/station.cfg" ]; then
     echo "[WARN] station.cfg not found, creating default..."
-    echo -e "# Station Configuration\nradio1" > /var/www/streamer/station.cfg
+    echo -e "# Station Configuration\nradio1" > "/opt/streamer/station.cfg"
 fi
 
 # Check service file

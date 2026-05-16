@@ -191,9 +191,9 @@ func (sr *StationRunner) runLoop() {
 			waitSec := dur
 			if !nextIsInsert && !peekIsInsert && peekFile != "" && nextFile != sr.silentPath {
 				// OK for Crossfade
-				waitSec = dur - 3.0
+				waitSec = dur - float64(sr.Station.Config.Crossfade)
 				if waitSec < 1 { waitSec = 1 } // Minimum 1 second before overlap
-				log.Printf("%s Mixer: Crossfade planned in %.2fs", sr.Station.LogPrefix, waitSec)
+				log.Printf("%s Mixer: Crossfade planned in %.2fs (config: %ds)", sr.Station.LogPrefix, waitSec, sr.Station.Config.Crossfade)
 			} else {
 				log.Printf("%s Mixer: Normal playback, waiting full %.2fs", sr.Station.LogPrefix, waitSec)
 			}
