@@ -1,6 +1,6 @@
-# 🚀 MusiKita Live Streaming Guide
+# 🚀 Go Audio Broadcaster Live Streaming Guide
 
-This guide helps you connect your MusiKita radio station directly to **TikTok Live**, **YouTube Live**, or **Facebook Live**.
+This guide helps you connect your Go Audio Broadcaster station directly to **TikTok Live**, **YouTube Live**, or **Facebook Live**.
 
 ## 1. Get Your Stream Credentials
 Before starting, you need the RTMP credentials from your target platform:
@@ -21,7 +21,7 @@ Before starting, you need the RTMP credentials from your target platform:
 
 ---
 
-## 2. Configuration in MusiKita
+## 2. Configuration in the Streamer
 Open your station configuration file (usually `station.cfg`) and add the following parameters:
 
 ### Basic Formula:
@@ -32,7 +32,7 @@ Open your station configuration file (usually `station.cfg`) and add the followi
 # Broadcasting to TikTok with aesthetic visuals
 radio1 output=/var/www/hls/radio1 playlist=/path/to/music \
        rtmp=rtmp://id.tiktok.com/stage/vbc-1234-abcd \
-       display_text=MUSIKITA_RADIO_GLOBAL \
+       display_text=MY_RADIO_GLOBAL \
        logo=/var/www/streamer/assets/my_logo.png \
        aac128=true
 ```
@@ -40,9 +40,9 @@ radio1 output=/var/www/hls/radio1 playlist=/path/to/music \
 ---
 
 ## 3. Visual Features
-When you stream to RTMP, MusiKita sends both audio and high-quality visuals:
+When you stream to RTMP, the broadcaster sends both audio and high-quality visuals:
 
-1. **Misty Background (Automatic)**: If no video is provided, MusiKita generates a beautiful "Misty Fog" effect (purple/blue moving gradients).
+1. **Misty Background (Automatic)**: If no video is provided, the engine generates a beautiful "Misty Fog" effect (purple/blue moving gradients).
 2. **display_text**: The text specified here will appear in the center of the screen. Perfect for your station's name.
 3. **logo**: If you provide a `.png` logo file, it will be automatically overlaid in the top-right corner.
 4. **video_loop**: Use your own video file as the background instead of the default misty fog.
@@ -52,7 +52,7 @@ When you stream to RTMP, MusiKita sends both audio and high-quality visuals:
 ## 4. How to Run
 After saving `station.cfg`:
 
-1. Run the streamer as usual:
+1. Run the broadcaster as usual:
    ```bash
    ./streamer -config=station.cfg
    ```
@@ -62,7 +62,7 @@ After saving `station.cfg`:
 
 ## 5. Pro Tips
 - **Internet Connection**: RTMP streaming requires a stable upload speed. Use a wired LAN connection if possible.
-- **Resolution**: MusiKita automatically sends at **360p**. This is optimized for mobile viewing on TikTok, ensuring high stability and good quality.
+- **Resolution**: The engine automatically sends at **360p**. This is optimized for mobile viewing on TikTok, ensuring high stability and good quality.
 - **Copyright**: Ensure your playlist contains safe-to-stream content if broadcasting on platforms like YouTube for long periods.
 
 ---
