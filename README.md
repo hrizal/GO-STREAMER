@@ -20,7 +20,9 @@ A high-performance audio streaming server written in Go. It supports real-time a
 - **Easy Station Shortcuts**: Automatic listener on port 80 (if available) for easy access: `http://yourip/station_id/`. Can be disabled using `-shortcuts=false`.
 - **Wide Format Support**: Supports MP3, WAV, OGG, FLAC, AAC, M4A, and WMA.
 - **Video to Audio**: Automatically extracts audio from video files (MP4, MKV, AVI) in your playlist.
-- **RTMP Live Streaming (TikTok/YouTube)**
+- **Live Hardware Input**: Capture live audio from system devices (WASAPI, ALSA, PulseAudio) using the `device:` prefix (see [API.md](./API.md) for details).
+- **RTMP Live Relay**: Synchronized live streaming to TikTok, YouTube, or Facebook with customizable background video and logo overlay.
+- **Icecast/Shoutcast Relay**: Dynamically pulls remote radio streams (HTTP/Icecast/Shoutcast) and converts them to HLS in real-time.
 
 ## ⚡ WebRTC vs Traditional HLS: The Latency Revolution
 

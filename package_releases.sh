@@ -1,7 +1,7 @@
 #!/bin/bash
 # Packaging script to create single-unzip ready-to-run ZIP installers for Go Audio Broadcaster
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 BUILD_DIR="./releases"
 DIST_DIR="./dist"
 TMP_DIR="./tmp_packaging"
