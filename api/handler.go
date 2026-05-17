@@ -2,14 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"strconv"
 
 	"github.com/streamer/encoder"
 	"github.com/streamer/station"
@@ -51,9 +52,23 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/mixer/status", h.corsMiddleware(h.handleMixerStatus))
 	mux.HandleFunc("/mixer/volume", h.corsMiddleware(h.handleMixerVolume))
 	mux.HandleFunc("/mixer/mute", h.corsMiddleware(h.handleMixerMute))
+	mux.HandleFunc("/mixer/buffer", h.corsMiddleware(h.handleMixerBuffer))
+	mux.HandleFunc("/webrtc/offer", h.corsMiddleware(h.handleWebRTCOffer))
+	mux.HandleFunc("/webrtc/publish", h.corsMiddleware(h.handleWebRTCPublish))
 	mux.HandleFunc("/mixer/restart", h.corsMiddleware(h.handleMixerRestart))
 	mux.HandleFunc("/mixer/skip", h.corsMiddleware(h.handleMixerSkip))
 	mux.HandleFunc("/breaking", h.corsMiddleware(h.handleBreaking))
+
+	// Manual Mixer Control routes
+	mux.HandleFunc("/mixer/mode", h.corsMiddleware(h.handleMixerMode))
+	mux.HandleFunc("/mixer/standby", h.corsMiddleware(h.handleMixerStandby))
+	mux.HandleFunc("/mixer/play", h.corsMiddleware(h.handleMixerPlay))
+	mux.HandleFunc("/mixer/mixing", h.corsMiddleware(h.handleMixerMixing))
+	mux.HandleFunc("/mixer/pause", h.corsMiddleware(h.handleMixerPause))
+	mux.HandleFunc("/mixer/rewind", h.corsMiddleware(h.handleMixerRewind))
+
+	// Continuous low-latency streaming
+	mux.HandleFunc("/stream/", h.corsMiddleware(h.handleStream))
 
 	// Serve HLS output files for clients
 	hlsServer := http.StripPrefix("/hls/", http.FileServer(http.Dir(h.serveDir)))
@@ -529,7 +544,7 @@ func (h *Handler) handleMixerVolume(w http.ResponseWriter, r *http.Request) {
 		StationID string  `json:"station_id"`
 		Channel   int     `json:"channel"`
 		Volume    float64 `json:"volume"`
-		Duration  float64 `json:"duration"` // optional duration
+		Duration  float64 `json:"duration"` // Default is 0 (instant) if not provided
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -563,6 +578,20 @@ func (h *Handler) handleMixerMute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
 	if err := h.manager.SetMixerMute(req.StationID, req.Channel, req.Mute); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -571,6 +600,182 @@ func (h *Handler) handleMixerMute(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
+	})
+}
+
+func (h *Handler) handleMixerBuffer(w http.ResponseWriter, r *http.Request) {
+	stationID := r.URL.Query().Get("id")
+	chunksStr := r.URL.Query().Get("chunks")
+	
+	var chunks int
+	var err error
+	if stationID == "" || chunksStr == "" {
+		if r.Method == http.MethodPost {
+			var req struct {
+				StationID string `json:"station_id"`
+				Chunks    int    `json:"chunks"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				stationID = req.StationID
+				chunks = req.Chunks
+			}
+		}
+	} else {
+		chunks, err = strconv.Atoi(chunksStr)
+		if err != nil {
+			http.Error(w, "Invalid chunks parameter", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if stationID == "" || chunks <= 0 {
+		http.Error(w, "Missing or invalid station_id or chunks parameter", http.StatusBadRequest)
+		return
+	}
+
+	st, exists := h.manager.GetStation(stationID)
+	if !exists {
+		http.Error(w, "Station not found", http.StatusNotFound)
+		return
+	}
+
+	if st.Encoder == nil || st.Encoder.Broadcaster == nil {
+		http.Error(w, "Encoder or Broadcaster not active", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Dynamic, real-time capacity adjustment!
+	st.Encoder.Broadcaster.SetCapacity(chunks)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "ok",
+		"station_id": stationID,
+		"chunks":     chunks,
+		"kb":         chunks * 4,
+		"seconds":    (chunks * 4 * 1024 * 8) / 64000,
+	})
+}
+
+func (h *Handler) handleWebRTCOffer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stationID := r.URL.Query().Get("id")
+	var req struct {
+		StationID string `json:"station_id"`
+		SDP       string `json:"sdp"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.StationID != "" {
+		stationID = req.StationID
+	}
+
+	if stationID == "" || req.SDP == "" {
+		http.Error(w, "Missing station_id or sdp", http.StatusBadRequest)
+		return
+	}
+
+	st, exists := h.manager.GetStation(stationID)
+	if !exists {
+		http.Error(w, "Station not found", http.StatusNotFound)
+		return
+	}
+
+	if st.Encoder == nil || st.Encoder.WebRTCBroadcaster == nil {
+		http.Error(w, "WebRTC audio streaming is not active/enabled on this station", http.StatusServiceUnavailable)
+		return
+	}
+
+	sdpAnswer, err := st.Encoder.WebRTCBroadcaster.HandleOffer(req.SDP)
+	if err != nil {
+		http.Error(w, "WebRTC SDP negotiation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "ok",
+		"station_id": stationID,
+		"sdp":        sdpAnswer,
+	})
+}
+
+func (h *Handler) handleWebRTCPublish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stationID := r.URL.Query().Get("id")
+	token := r.URL.Query().Get("token")
+
+	var req struct {
+		StationID string `json:"station_id"`
+		Token     string `json:"token"`
+		SDP       string `json:"sdp"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+		if req.StationID != "" {
+			stationID = req.StationID
+		}
+		if req.Token != "" {
+			token = req.Token
+		}
+	}
+
+	if req.SDP == "" {
+		bodyBytes, _ := io.ReadAll(r.Body)
+		req.SDP = string(bodyBytes)
+	}
+
+	if stationID == "" || req.SDP == "" {
+		http.Error(w, "Missing station_id or sdp", http.StatusBadRequest)
+		return
+	}
+
+	st, exists := h.manager.GetStation(stationID)
+	if !exists {
+		http.Error(w, "Station not found", http.StatusNotFound)
+		return
+	}
+
+	// SECURE PROTECTION: Validate the token configured in the station cfg
+	configuredToken := st.Station.Config.WebRTCIngressToken
+	if configuredToken == "" {
+		http.Error(w, "WebRTC Ingress (publishing) is disabled on this station (no webrtc_ingress_token configured)", http.StatusForbidden)
+		return
+	}
+
+	if token != configuredToken {
+		http.Error(w, "Invalid security token", http.StatusUnauthorized)
+		return
+	}
+
+	if st.Encoder == nil || st.Encoder.WebRTCBroadcaster == nil {
+		http.Error(w, "WebRTC audio engine is not active on this station", http.StatusServiceUnavailable)
+		return
+	}
+
+	sdpAnswer, err := st.Encoder.WebRTCBroadcaster.HandleIngressOffer(req.SDP, st.Encoder.Mixer)
+	if err != nil {
+		http.Error(w, "WebRTC Ingress SDP negotiation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "ok",
+		"station_id": stationID,
+		"sdp":        sdpAnswer,
 	})
 }
 
@@ -589,12 +794,22 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 		Force     bool               `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error": "Invalid JSON format: `+err.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, `{"error": "Format JSON tidak valid. `+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
 
 	if req.StationID == "" {
-		http.Error(w, `{"error": "Parameter 'station_id' is required."}`, http.StatusBadRequest)
+		http.Error(w, `{"error": "Parameter 'station_id' wajib diisi."}`, http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err == nil && isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in manual mode, auto inject instruction ignored",
+		})
 		return
 	}
 
@@ -625,43 +840,44 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if channel is active to prevent collision
+	// Cek apakah channel sedang aktif jika ingin inject lagu
 	if req.File != "" && !req.Force {
 		statusList, err := h.manager.GetMixerStatus(req.StationID)
 		if err == nil && targetChannelID >= 0 && targetChannelID < len(statusList) {
 			if statusList[targetChannelID].Active {
-				http.Error(w, `{"error": "Wait! Channel `+strconv.Itoa(targetChannelID)+` is currently playing something ('`+statusList[targetChannelID].Label+`'). If you are sure you want to override it, add the parameter \"force\": true to your JSON payload."}`, http.StatusConflict)
+				http.Error(w, `{"error": "Eh tunggu! Channel `+strconv.Itoa(targetChannelID)+` sedang memutar sesuatu ('`+statusList[targetChannelID].Label+`'). Jika kamu yakin ingin menimpanya, tambahkan parameter \"force\": true di dalam JSON."}`, http.StatusConflict)
 				return
 			}
 		}
 	}
 
-	// Check if file exists
+	// Cek apakah file ada jika file dikirim
 	if req.File != "" {
 		if _, err := os.Stat(req.File); os.IsNotExist(err) {
-			http.Error(w, `{"error": "File not found: `+req.File+`"}`, http.StatusBadRequest)
+			http.Error(w, `{"error": "File tidak ditemukan: `+req.File+`"}`, http.StatusBadRequest)
 			return
 		}
 	}
 
-	// Execute Smart Inject in background
+	// Jalankan Smart Inject
 	go func() {
-		// 1. Instant fade-in and injection
+		// 1. Eksekusi Fade In & Injeksi Lagu
 		if req.File != "" {
-			// Set volume to 0 instantly before playing to ensure smooth fade
+			// Jika lagu akan diinjeksi, set volumenya ke 0 dulu secara instan agar senyap
 			h.manager.SetMixerVolume(req.StationID, targetChannelID, 0.0, 0.0)
 			
+			// Injeksi lagu secara instan
 			h.manager.PlayInstant(req.StationID, req.File, targetChannelID)
 		}
 
-		// Map to hold original volumes before modification
+		// Peta untuk menyimpan volume asli sebelum diubah
 		type volData struct {
 			origVol float64
 			token   int64
 		}
 		channelData := make(map[int]*volData)
 
-		// 2. Execute volume modifications (Smart Ducking)
+		// 2. Eksekusi Perubahan Volume (Smart Mixing)
 		if volumes != nil {
 			var wg sync.WaitGroup
 			
@@ -672,8 +888,8 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 				}
 				
 				origVol := h.manager.GetChannelVolume(req.StationID, chID)
-				// If volume is currently ducked (less than 1.0), assume baseline is 1.0
-				// as it's likely being ducked by an overlapping insert
+				// Jika volume sedang diduck (kurang dari 1.0), asumsikan aslinya 1.0
+				// karena itu pasti sedang diduck oleh insert sebelumnya yang ditimpa
 				if origVol < 1.0 {
 					origVol = 1.0
 				}
@@ -681,13 +897,11 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 				cd := &volData{origVol: origVol}
 				channelData[chID] = cd
 
-				// Normalize 0-100 to 0.0-1.0
 				targetVol := volPct / 100.0
 				if targetVol > 1.0 { targetVol = 1.0 }
 				if targetVol < 0.0 { targetVol = 0.0 }
 
 				if req.File != "" && chID != targetChannelID {
-					// Delay fade out on other channels by 1 second so the injected audio comes in first
 					wg.Add(1)
 					go func(cid int, tvol float64, dur float64, d *volData) {
 						defer wg.Done()
@@ -696,24 +910,23 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 						d.token = token
 					}(chID, targetVol, fadeDur, cd)
 				} else {
-					// Fade in target channel immediately
 					token, _ := h.manager.SetMixerVolume(req.StationID, chID, targetVol, fadeDur)
 					cd.token = token
 				}
 			}
 			
-			// Wait for all SetMixerVolume calls (max 1 second) to gather tokens
+			// Tunggu semua SetMixerVolume selesai (maks 1 detik) agar token terkumpul
 			wg.Wait()
 		}
 
-		// 3. Auto-Restore Volume (if file duration is known)
+		// 3. Auto-Restore Volume (Jika ada file yang diputar)
 		if req.File != "" && volumes != nil {
 			dur := encoder.GetAudioDuration(req.File)
 			if dur > 1.0 {
-				// Subtract 1 second as we already waited 1 second during delayed fade-out
+				// Kurangi 1 detik karena kita sudah menunggu 1 detik saat fade out Bumbu Rahasia
 				time.Sleep(time.Duration((dur - 1.0) * float64(time.Second)))
 				
-				// Restore original volume (only if token matches, meaning no other insert took over)
+				// Kembalikan volume ke aslinya (HANYA jika token cocok, artinya tidak ditimpa insert lain)
 				for chID, cd := range channelData {
 					h.manager.RestoreMixerVolume(req.StationID, chID, cd.origVol, fadeDur, cd.token)
 				}
@@ -724,7 +937,7 @@ func (h *Handler) handleBreaking(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":  "ok",
-		"message": "Smart inject command executed successfully",
+		"message": "Smart Inject perintah dieksekusi",
 	})
 }
 
@@ -768,6 +981,16 @@ func (h *Handler) handleMixerSkip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err == nil && isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in manual mode, skip instruction ignored",
+		})
+		return
+	}
+
 	if err := h.manager.Skip(req.StationID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -778,4 +1001,314 @@ func (h *Handler) handleMixerSkip(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"msg":    "Skip triggered",
 	})
+}
+
+func (h *Handler) handleMixerMode(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID string `json:"station_id"`
+		Mode      string `json:"mode"` // "auto" or "manual"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.StationID == "" {
+		http.Error(w, "station_id is required", http.StatusBadRequest)
+		return
+	}
+	if req.Mode != "auto" && req.Mode != "manual" {
+		http.Error(w, "mode must be 'auto' or 'manual'", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.manager.SetMixerMode(req.StationID, req.Mode); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "ok",
+		"station_id": req.StationID,
+		"mode":       req.Mode,
+	})
+}
+
+func (h *Handler) handleMixerStandby(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID string `json:"station_id"`
+		Channel   int    `json:"channel"`
+		File      string `json:"file"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
+	if err := h.manager.SetMixerStandby(req.StationID, req.Channel, req.File); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+func (h *Handler) handleMixerPlay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID string  `json:"station_id"`
+		Channel   int     `json:"channel"`
+		Volume    float64 `json:"volume"`
+		Duration  float64 `json:"duration"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
+	if err := h.manager.PlayMixerChannel(req.StationID, req.Channel, req.Volume, req.Duration); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+func (h *Handler) handleMixerMixing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID   string  `json:"station_id"`
+		UpChannel   int     `json:"up_channel"`
+		UpVolume    float64 `json:"up_volume"`
+		DownChannel int     `json:"down_channel"`
+		DownVolume  float64 `json:"down_volume"`
+		Duration    float64 `json:"duration"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
+	if err := h.manager.MixChannels(req.StationID, req.UpChannel, req.UpVolume, req.DownChannel, req.DownVolume, req.Duration); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+func (h *Handler) handleMixerPause(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID string `json:"station_id"`
+		Channel   int    `json:"channel"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
+	if err := h.manager.PauseMixerChannel(req.StationID, req.Channel); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+func (h *Handler) handleMixerRewind(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		StationID string  `json:"station_id"`
+		Channel   int     `json:"channel"`
+		Seconds   float64 `json:"seconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	isManual, err := h.manager.IsManualMode(req.StationID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !isManual {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ignored",
+			"message": "Station is in auto mode, instruction ignored",
+		})
+		return
+	}
+
+	if err := h.manager.RewindMixerChannel(req.StationID, req.Channel, req.Seconds); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
+	// Parse station ID from URL. The path format is /stream/{station_id}.mp3
+	path := r.URL.Path
+	if !strings.HasPrefix(path, "/stream/") {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	
+	stationFile := strings.TrimPrefix(path, "/stream/")
+	stationID := strings.TrimSuffix(stationFile, ".mp3")
+	
+	if stationID == "" {
+		http.Error(w, "station_id is required", http.StatusBadRequest)
+		return
+	}
+	
+	st, exists := h.manager.GetStation(stationID)
+	if !exists {
+		http.Error(w, "Station not found", http.StatusNotFound)
+		return
+	}
+	
+	if !st.Station.Config.MP3 {
+		http.Error(w, "MP3 streaming is disabled in station configuration. Please enable it by setting mp3=true in station.cfg and restarting the streamer service.", http.StatusForbidden)
+		return
+	}
+	
+	if st.Encoder == nil || st.Encoder.Broadcaster == nil {
+		http.Error(w, "Streaming not available", http.StatusServiceUnavailable)
+		return
+	}
+	
+	// Add listener to broadcaster
+	ch := st.Encoder.Broadcaster.AddListener()
+	defer st.Encoder.Broadcaster.RemoveListener(ch)
+	
+	// Set response headers for continuous MP3 stream
+	w.Header().Set("Content-Type", "audio/mpeg")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	ctx := r.Context()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case data, open := <-ch:
+			if !open {
+				return
+			}
+			_, err := w.Write(data)
+			if err != nil {
+				return
+			}
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+	}
 }

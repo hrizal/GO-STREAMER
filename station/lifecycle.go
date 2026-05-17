@@ -141,6 +141,16 @@ func (sr *StationRunner) runLoop() {
 			log.Printf("%s Station stop signal received", sr.Station.LogPrefix)
 			return
 		default:
+			// If in manual mode, wait and do nothing in the auto loop
+			sr.Station.RLock()
+			isManual := sr.Station.Mode == "manual"
+			sr.Station.RUnlock()
+
+			if isManual {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+
 			nextFile, nextIsInsert := sr.popTrack()
 			if nextFile == "" {
 				// No tracks, play silent

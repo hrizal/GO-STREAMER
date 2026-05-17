@@ -3,8 +3,13 @@
 
 A high-performance audio streaming server written in Go. It supports real-time audio mixing, HLS adaptive bitrate streaming, and dynamic station management via REST API.
 
+> [!TIP]
+> **Prefer a No-Code, Ready-to-Stream Experience?**
+> You don't need to write any code or manage complex API calls! Simply **download the precompiled binary for your OS**, configure your stations in `station.cfg`, point the playlist parameter to your music folder, run the app, and you are instantly broadcasting **24/7 with studio-grade audio quality**. All the advanced real-time mixing, automatic crossfades, loudness normalizers, and streaming pipelines are fully automated under the hood!
+
 ## Features
 
+- **Real-Time WebRTC (DJ Mode)**: Ultra-low-latency studio monitoring (<100ms) powered by high-fidelity Opus 96kbps VBR stereo. Zero buffering, zero lag, and 100% memory-based (no disk I/O SSD wear).
 - **HLS Adaptive Bitrate**: Serves audio in multiple bitrates (64k, 96k, 128k) using HLS.
 - **Dynamic Mixing**: Supports 8-channel audio mixing with automatic ducking and crossfading.
 - **REST API**: Full control over stations, queues, and playback settings via HTTP endpoints.
@@ -16,6 +21,23 @@ A high-performance audio streaming server written in Go. It supports real-time a
 - **Wide Format Support**: Supports MP3, WAV, OGG, FLAC, AAC, M4A, and WMA.
 - **Video to Audio**: Automatically extracts audio from video files (MP4, MKV, AVI) in your playlist.
 - **RTMP Live Streaming (TikTok/YouTube)**
+
+## ⚡ WebRTC vs Traditional HLS: The Latency Revolution
+
+Traditional streaming (HLS, Icecast, Shoutcast) is great for mass audiences, but has a major drawback: **latency** (ranging from 2 to 30 seconds). This makes real-time monitoring, live DJ mixing, and voice announcement synchronization impossible.
+
+Go Audio Broadcaster solves this by introducing a **hybrid broadcasting architecture**:
+
+1. **DJs / Interactive Listeners (WebRTC - Live Mode - Bi-directional)**:
+   - **Egress (Zero-Latency Output)**: Real-time, ultra-low-latency audio (<100ms) delivered instantly via high-fidelity Opus over UDP. Perfect for DJs who need instant monitor feedback and listeners who want a zero-lag live show.
+   - **Ingress (Browser Microphone Publishing)**: Allows authorized DJs to broadcast their **live microphone audio directly from any web browser** to the station's Priority Channel (Channel 0). Under the hood, a dynamic FFmpeg decoder resamples the Opus stream in real-time, feeding the mixer and triggering **Auto-Ducking** to lower the background music automatically! Secured via configurable token validation (`webrtc_ingress_token`).
+2. **Mass Audience (HLS - Scaled Mode)**: Scalable, cacheable by CDNs (like Cloudflare), allowing you to stream to millions of passive listeners using a tiny 1-core VPS with minimal bandwidth costs.
+
+### How it Works:
+- **Pion WebRTC Integration**: Implements a lightweight, native Go WebRTC signaling engine.
+- **RTP Packet Forwarding**: FFmpeg resamples and encodes the active mixer output to studio-grade Opus (48KHz, stereo) in real-time, feeding it to a local UDP loop. The Go engine reads RTP packets directly in memory and forwards them to all connected peers over UDP.
+- **Firewall & NAT Friendly**: Built-in ephemeral UDP port restriction (`50000 - 50100`) and customizable NAT 1:1 external IP mapping (`webrtc_nat_ip`) to guarantee instant connection behind private subnets and VPS firewalls.
+- **Zero Disk I/O**: Unlike HLS which writes segment files continuously, the WebRTC pipeline is 100% memory-based, preserving your server's SSD health entirely.
 
 You can relay your station's audio to live streaming platforms by adding RTMP settings to your configuration.
 

@@ -314,6 +314,7 @@ func (m *Manager) SnapshotAll() []types.QueueSnapshot {
 		snapshots = append(snapshots, types.QueueSnapshot{
 			StationID:        runner.Station.ID,
 			Status:           string(runner.Station.Status),
+			Mode:             runner.Station.Mode,
 			PreviousTrack:    runner.Station.PreviousTrack,
 			CurrentTrack:     runner.Station.CurrentTrack,
 			NextTrack:        runner.Station.NextTrack,
@@ -554,4 +555,155 @@ func (m *Manager) PlayInstant(stationID string, file string, channelID int) erro
 	}
 	runner.Encoder.PlayInstant(file, channelID)
 	return nil
+}
+
+func (m *Manager) SetMixerMode(stationID string, mode string) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+
+	runner.Station.Lock()
+	runner.Station.Mode = mode
+	runner.Station.Unlock()
+
+	if mode == "manual" {
+		// 1. Pindahkan semua volume ke 0 (Move all mixer channel volumes to 0)
+		if runner.Encoder.Mixer != nil {
+			for i := range runner.Encoder.Mixer.Channels {
+				runner.Encoder.Mixer.Channels[i].SetVolume(0.0, 0.0)
+				runner.Encoder.Mixer.Channels[i].ResetManualState()
+			}
+		}
+
+		// 2. Bersihkan playlist (walaupun di config ada)
+		runner.QueueMgr.ClearQueue("all")
+
+		// 3. Posisikan standby
+		runner.Station.Lock()
+		runner.Station.Status = types.StatusSilent
+		runner.Station.CurrentTrack = ""
+		runner.Station.NextTrack = ""
+		runner.Station.Unlock()
+		
+		log.Printf("[Manager] Station %s mode set to MANUAL. Volumes set to 0, queues cleared.", stationID)
+	} else {
+		// Returning to auto mode
+		if runner.QueueMgr != nil {
+			runner.QueueMgr.Load()
+		}
+
+		runner.Station.Lock()
+		// If playlist queue is still empty but we have an original track pool, restore it
+		if len(runner.Station.PlaylistQueue) == 0 && len(runner.Station.OriginalQueue) > 0 {
+			runner.Station.PlaylistQueue = make([]string, len(runner.Station.OriginalQueue))
+			copy(runner.Station.PlaylistQueue, runner.Station.OriginalQueue)
+		}
+		runner.Station.Status = types.StatusSilent
+		runner.Station.Unlock()
+		
+		log.Printf("[Manager] Station %s mode set to AUTO. Queues reloaded and restored.", stationID)
+	}
+
+	return nil
+}
+
+func (m *Manager) IsManualMode(stationID string) (bool, error) {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return false, fmt.Errorf("station not found: %s", stationID)
+	}
+
+	runner.Station.RLock()
+	isManual := runner.Station.Mode == "manual"
+	runner.Station.RUnlock()
+
+	return isManual, nil
+}
+
+func (m *Manager) SetMixerStandby(stationID string, channelID int, file string) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+	if runner.Encoder.Mixer == nil {
+		return fmt.Errorf("mixer not initialized for station %s", stationID)
+	}
+	if channelID < 0 || channelID >= len(runner.Encoder.Mixer.Channels) {
+		return fmt.Errorf("invalid channel ID: %d", channelID)
+	}
+
+	if file != "" && !strings.HasPrefix(file, "http://") && !strings.HasPrefix(file, "https://") {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			return fmt.Errorf("file not found: %s", file)
+		}
+	}
+
+	runner.Encoder.Mixer.Channels[channelID].SetStandbyFile(file)
+	return nil
+}
+
+func (m *Manager) PlayMixerChannel(stationID string, channelID int, volume float64, duration float64) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+
+	return runner.Encoder.PlayChannel(channelID, volume, duration)
+}
+
+func (m *Manager) MixChannels(stationID string, upChannel int, upVolume float64, downChannel int, downVolume float64, duration float64) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+	if runner.Encoder.Mixer == nil {
+		return fmt.Errorf("mixer not initialized")
+	}
+	if upChannel < 0 || upChannel >= len(runner.Encoder.Mixer.Channels) || downChannel < 0 || downChannel >= len(runner.Encoder.Mixer.Channels) {
+		return fmt.Errorf("invalid channel IDs")
+	}
+
+	runner.Encoder.Mixer.Channels[upChannel].SetVolume(upVolume, duration)
+	runner.Encoder.Mixer.Channels[downChannel].SetVolume(downVolume, duration)
+	return nil
+}
+
+func (m *Manager) PauseMixerChannel(stationID string, channelID int) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+
+	return runner.Encoder.PauseChannel(channelID)
+}
+
+func (m *Manager) RewindMixerChannel(stationID string, channelID int, seconds float64) error {
+	m.mu.RLock()
+	runner, exists := m.stations[stationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("station not found: %s", stationID)
+	}
+
+	return runner.Encoder.RewindChannel(channelID, seconds)
 }

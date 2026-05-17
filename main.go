@@ -237,8 +237,8 @@ func main() {
 // Format per line: station_id  [key=value ...]
 // Supported keys: random, loop, unique (bool), output (path)
 // Example:
-//   radio1  output=/var/www/hls/radio1  random=false  loop=true  unique=true
-//   radio2 output=/var/www/hls/radio2  random=true   loop=true  unique=true
+//   radio1    output=/var/www/radio1/hls  random=false  loop=true  unique=true
+//   radio2    output=/var/www/radio2/hls  random=true   loop=true  unique=true
 func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -309,6 +309,8 @@ func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 				cfg.Opus128 = boolVal
 			case "mp3":
 				cfg.MP3 = boolVal
+			case "webrtc":
+				cfg.WebRTC = boolVal
 			case "output":
 				if filepath.IsAbs(val) {
 					outputDir = val
@@ -338,6 +340,12 @@ func loadStationIDs(path string) ([]types.StationConfigEntry, error) {
 			case "rtmp":
 				cfg.RTMP = val
 				log.Printf("[Config] Station %s: Found RTMP=%s", stationID, val)
+			case "webrtc_nat_ip":
+				cfg.WebRTCNATIP = val
+				log.Printf("[Config] Station %s: Found WebRTCNATIP=%s", stationID, val)
+			case "webrtc_ingress_token":
+				cfg.WebRTCIngressToken = val
+				log.Printf("[Config] Station %s: Found WebRTCIngressToken=%s", stationID, val)
 			case "logo":
 				cfg.Logo = val
 				log.Printf("[Config] Station %s: Found Logo=%s", stationID, val)

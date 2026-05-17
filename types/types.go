@@ -90,6 +90,9 @@ type PlaybackConfig struct {
 	Opus96  bool `json:"opus96"`
 	Opus128 bool `json:"opus128"`
 	MP3     bool `json:"mp3"`
+	WebRTC  bool `json:"webrtc"`
+	WebRTCNATIP string `json:"webrtc_nat_ip"`
+	WebRTCIngressToken string `json:"webrtc_ingress_token"`
 	// HLS segment duration
 	HlsTime     int    `json:"hls_time"`
 	RTMP        string `json:"rtmp"`
@@ -114,6 +117,7 @@ func DefaultPlaybackConfig() PlaybackConfig {
 		Opus96:    true,
 		Opus128:   true,
 		MP3:       true,
+		WebRTC:    true,
 		HlsTime: 10,
 		Crossfade: 3,
 	}
@@ -123,6 +127,7 @@ func DefaultPlaybackConfig() PlaybackConfig {
 type Station struct {
 	ID            string         `json:"id"`
 	Status        StationStatus  `json:"status"`
+	Mode          string         `json:"mode"` // "auto" or "manual"
 	PreviousTrack string         `json:"previous_track"`
 	CurrentTrack  string         `json:"current_track"`
 	CurrentFile   string         `json:"-"`
@@ -143,6 +148,7 @@ func NewStation(id string, outputBase string) *Station {
 	return &Station{
 		ID:            id,
 		Status:        StatusSilent,
+		Mode:          "auto",
 		PreviousTrack: "",
 		CurrentTrack:  "silent_5s.mp3",
 		NextTrack:     "",
@@ -162,6 +168,7 @@ func NewStationWithOutput(id string, outputDir string) *Station {
 	return &Station{
 		ID:            id,
 		Status:        StatusSilent,
+		Mode:          "auto",
 		PreviousTrack: "",
 		CurrentTrack:  "silent_5s.mp3",
 		NextTrack:     "",
@@ -203,6 +210,7 @@ func (s *Station) Stop() {
 type QueueSnapshot struct {
 	StationID        string         `json:"station_id"`
 	Status           string         `json:"status"`
+	Mode             string         `json:"mode"`
 	PreviousTrack    string         `json:"previous_track"`
 	CurrentTrack     string         `json:"current_track"`
 	NextTrack        string         `json:"next_track"`
@@ -221,7 +229,7 @@ type InjectRequest struct {
 	Type      string   `json:"type"`
 	Mode      string   `json:"mode"`
 	Files     []string `json:"files"`
-	Crossfade *int     `json:"crossfade"`
+	Crossfade *int     `json:"crossfade"` // Optional, overrides global playlist crossfade config
 }
 
 // BitrateVariants holds directories for AAC (.ts) and Opus (.mp4)

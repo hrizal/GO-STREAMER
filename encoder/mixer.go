@@ -19,6 +19,15 @@ type MixerChannel struct {
 	Muted      bool
 	Label      string
 	restoreToken int64
+	StandbyFile  string // Added for manual standby
+	
+	// Seeking & Pause states
+	PlayStartTime      time.Time
+	CurrentPlayingFile string
+	AccumulatedSeek    float64
+	PausedPosition     float64
+	IsPaused           bool
+	TrackDuration      float64
 }
 
 func (c *MixerChannel) Write(p []byte) (n int, err error) {
@@ -99,12 +108,35 @@ func (c *MixerChannel) SetLabel(l string) {
 	c.Label = l
 }
 
+func (c *MixerChannel) SetStandbyFile(file string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.StandbyFile = file
+}
+
+func (c *MixerChannel) ResetManualState() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.StandbyFile = ""
+	c.CurrentPlayingFile = ""
+	c.IsPaused = false
+	c.PausedPosition = 0.0
+	c.AccumulatedSeek = 0.0
+	c.TrackDuration = 0.0
+}
+
 type ChannelStatus struct {
-	ID     int     `json:"id"`
-	Active bool    `json:"active"`
-	Volume float64 `json:"volume"`
-	Muted  bool    `json:"muted"`
-	Label  string  `json:"label"`
+	ID                 int     `json:"id"`
+	Active             bool    `json:"active"`
+	Volume             float64 `json:"volume"`
+	Muted              bool    `json:"muted"`
+	Label              string  `json:"label"`
+	StandbyFile        string  `json:"standby_file"`
+	IsPaused           bool    `json:"is_paused"`
+	PausedPosition     float64 `json:"paused_position"`
+	PlayStartTimeMs    int64   `json:"play_start_time_ms"`
+	AccumulatedSeekSec float64 `json:"accumulated_seek_sec"`
+	TrackDurationSec   float64 `json:"track_duration_sec"`
 }
 
 type AudioMixer struct {
@@ -250,12 +282,22 @@ func (m *AudioMixer) GetStatus() []ChannelStatus {
 	status := make([]ChannelStatus, len(m.Channels))
 	for i, ch := range m.Channels {
 		ch.mu.Lock()
+		var startTimeMs int64 = 0
+		if !ch.PlayStartTime.IsZero() {
+			startTimeMs = ch.PlayStartTime.UnixNano() / int64(time.Millisecond)
+		}
 		status[i] = ChannelStatus{
-			ID:     ch.id,
-			Active: ch.active,
-			Volume: ch.targetVol,
-			Muted:  ch.Muted,
-			Label:  ch.Label,
+			ID:                 ch.id,
+			Active:             ch.active,
+			Volume:             ch.targetVol,
+			Muted:              ch.Muted,
+			Label:              ch.Label,
+			StandbyFile:        ch.StandbyFile,
+			IsPaused:           ch.IsPaused,
+			PausedPosition:     ch.PausedPosition,
+			PlayStartTimeMs:    startTimeMs,
+			AccumulatedSeekSec: ch.AccumulatedSeek,
+			TrackDurationSec:   ch.TrackDuration,
 		}
 		ch.mu.Unlock()
 	}
